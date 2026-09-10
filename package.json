@@ -5,7 +5,8 @@
   "description": "SafeCheck Safety Inspection Management — functional demo with a real SQLite-backed database.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node tests/run-tests.js"
   },
   "engines": {
     "node": ">=22.5.0"
