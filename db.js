@@ -106,6 +106,25 @@ db.exec(`
   -- Which venues an individual field user is responsible for. Supervisors are scoped
   -- by branch and managers/admins see everything, so only inspector/safety accounts
   -- get rows here.
+  -- User Acceptance Test responses, collected in the product itself rather than on
+  -- paper. Storing tester name and device alongside a server-side timestamp is what
+  -- makes a response auditable evidence rather than a file someone could have typed.
+  CREATE TABLE IF NOT EXISTS uat_feedback (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    tester_name TEXT NOT NULL,
+    role_used TEXT,
+    device TEXT,
+    scenarios_json TEXT NOT NULL DEFAULT '[]',
+    ease_rating INTEGER,
+    usefulness TEXT,
+    confusing TEXT,
+    missing TEXT,
+    acceptance TEXT,
+    acceptance_note TEXT,
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS venue_assignments (
     user_id TEXT NOT NULL REFERENCES users(id),
     venue_id TEXT NOT NULL REFERENCES venues(id),
@@ -220,12 +239,13 @@ function publicUser(row) {
 const BRANCHES = ['BKK-CENTRAL', 'BKK-EAST', 'BKK-NORTH'];
 
 const CAPABILITIES = {
-  inspector:  ['inspection.submit', 'alert.acknowledge'],
-  safety:     ['inspection.submit', 'alert.acknowledge', 'alert.escalate', 'action.update', 'alert.simulate'],
-  supervisor: ['alert.acknowledge', 'alert.escalate', 'alert.close', 'action.update', 'alert.simulate'],
-  manager:    ['alert.acknowledge', 'alert.close', 'action.update', 'alert.simulate', 'equipment.manage'],
+  inspector:  ['inspection.submit', 'alert.acknowledge', 'feedback.submit'],
+  safety:     ['inspection.submit', 'alert.acknowledge', 'alert.escalate', 'action.update', 'alert.simulate', 'feedback.submit'],
+  supervisor: ['alert.acknowledge', 'alert.escalate', 'alert.close', 'action.update', 'alert.simulate', 'feedback.submit'],
+  manager:    ['alert.acknowledge', 'alert.close', 'action.update', 'alert.simulate', 'equipment.manage', 'feedback.submit'],
   admin:      ['inspection.submit', 'alert.acknowledge', 'alert.escalate', 'alert.close',
-               'action.update', 'alert.simulate', 'equipment.manage', 'system.reset']
+               'action.update', 'alert.simulate', 'equipment.manage', 'system.reset',
+               'feedback.submit', 'feedback.read']
 };
 
 function capabilitiesFor(role) { return CAPABILITIES[role] || []; }
@@ -522,6 +542,8 @@ function bootstrap(user) {
     checklistItems: getChecklistItems(),
     // Lets the UI explain *why* it is showing a subset and grey out actions this role
     // cannot perform — without the UI ever being the thing that enforces it.
+    feedbackCount: feedbackCount(),
+    feedback: can(user, 'feedback.read') ? getFeedback(user) : null,
     scope: {
       role: user.role,
       branch: user.branch || '',
@@ -697,12 +719,52 @@ function resetAll(user) {
   // way and put back. Simply deleting them would silently strip every field user's
   // scope, and leaving them in place trips the foreign key on DELETE FROM venues.
   // seed() recreates the venues under their original ids, so the mapping still holds.
+  // uat_feedback is deliberately absent from the delete list below: resetting demo
+  // data must never destroy real responses collected from testers.
   const savedAssignments = db.prepare('SELECT user_id, venue_id FROM venue_assignments').all();
   db.exec('DELETE FROM venue_assignments; DELETE FROM media; DELETE FROM inspections; DELETE FROM ai_alerts; DELETE FROM equipment; DELETE FROM checklist_items; DELETE FROM venues;');
   seed();
   const liveVenues = new Set(db.prepare('SELECT id FROM venues').all().map(r => r.id));
   const restore = db.prepare('INSERT OR IGNORE INTO venue_assignments (user_id, venue_id) VALUES (?,?)');
   savedAssignments.filter(r => liveVenues.has(r.venue_id)).forEach(r => restore.run(r.user_id, r.venue_id));
+}
+
+// --- User Acceptance Test feedback ------------------------------------------------
+// Deliberately NOT filtered by venue scope: a UAT response is about the product as a
+// whole, not about one venue's data. It is gated by capability instead — anyone
+// signed in may submit one, only an administrator may read them back.
+function addFeedback(body, user) {
+  assertCan(user, 'feedback.submit');
+  const name = (body.testerName || '').trim();
+  if (!name) throw new Error('กรุณากรอกชื่อผู้ทดสอบ');
+  const scenarios = Array.isArray(body.scenarios) ? body.scenarios : [];
+  const id = genId('UAT');
+  db.prepare(`INSERT INTO uat_feedback
+      (id, user_id, tester_name, role_used, device, scenarios_json, ease_rating,
+       usefulness, confusing, missing, acceptance, acceptance_note, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, user.id, name.slice(0, 120), user.role, (body.device || '').slice(0, 40),
+      JSON.stringify(scenarios), Number(body.easeRating) || null,
+      (body.usefulness || '').slice(0, 40), (body.confusing || '').slice(0, 2000),
+      (body.missing || '').slice(0, 2000), (body.acceptance || '').slice(0, 40),
+      (body.acceptanceNote || '').slice(0, 2000), new Date().toISOString());
+  return { id };
+}
+
+function getFeedback(user) {
+  assertCan(user, 'feedback.read');
+  return db.prepare('SELECT * FROM uat_feedback ORDER BY created_at DESC').all().map(r => ({
+    id: r.id, testerName: r.tester_name, roleUsed: r.role_used, device: r.device,
+    scenarios: JSON.parse(r.scenarios_json || '[]'), easeRating: r.ease_rating,
+    usefulness: r.usefulness, confusing: r.confusing, missing: r.missing,
+    acceptance: r.acceptance, acceptanceNote: r.acceptance_note, createdAt: r.created_at
+  }));
+}
+
+// How many responses exist, so every tester can see the count without being able to
+// read anyone else's answers.
+function feedbackCount() {
+  return db.prepare('SELECT COUNT(*) AS n FROM uat_feedback').get().n;
 }
 
 // --- Auth operations -------------------------------------------------------------
@@ -775,5 +837,6 @@ module.exports = {
   updateEquipment, addEquipment, resetAll, requiredExtinguishers,
   createUser, verifyLogin, createSession, getSessionUser, deleteSession,
   addMedia, getMedia, deleteMedia, MEDIA_LIMITS,
+  addFeedback, getFeedback, feedbackCount,
   can, capabilitiesFor, visibleVenueIds, BRANCHES, CAPABILITIES, SELF_SIGNUP_ROLES
 };

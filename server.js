@@ -289,6 +289,15 @@ async function handleApi(req, res, pathname, method) {
       db.deleteMedia(decodeURIComponent(mediaMatch[1]), user);
       return sendJson(res, 200, { ok: true });
     }
+    // UAT feedback: any signed-in user may submit one; reading them back requires
+    // the feedback.read capability, which only an administrator has.
+    if (pathname === '/api/feedback' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 201, db.addFeedback(body, user));
+    }
+    if (pathname === '/api/feedback' && method === 'GET') {
+      return sendJson(res, 200, { feedback: db.getFeedback(user) });
+    }
     if (pathname === '/api/reset' && method === 'POST') {
       db.resetAll(user);
       return sendJson(res, 200, { ok: true });

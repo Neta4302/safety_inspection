@@ -130,6 +130,7 @@
         <small class="nav-section" data-i18n="nav.section.docs">เอกสารระบบ</small>
         <button data-view="standards"><span>§</span><span data-i18n="nav.standards">มาตรฐานความปลอดภัย</span></button>
         <button data-view="testing"><span>✓</span><span data-i18n="nav.testing">การทดสอบระบบ</span></button>
+        <button data-view="feedback"><span>☆</span><span data-i18n="nav.feedback">ส่งความคิดเห็น (UAT)</span> <em id="nav-feedback-count">0</em></button>
       </nav>
       <div class="sidebar-bottom">
         <button id="reset-data" class="text-button" data-cap="system.reset" data-i18n="shell.reset">↻ รีเซ็ตข้อมูลเดโม</button>
@@ -405,6 +406,68 @@
         <section id="view-standards" class="view" data-title-key="view.standards">
           <div class="section-intro"><div><span class="eyebrow" data-i18n="std.eyebrow">SAFETY STANDARDS</span><h1 data-i18n="std.title">มาตรฐานความปลอดภัยที่ใช้อ้างอิง</h1><p data-i18n="std.subtitle"></p></div></div>
           <div id="standards-list" class="standards-list"></div>
+        </section>
+
+        <section id="view-feedback" class="view" data-title-key="view.feedback">
+          <div class="section-intro"><div><span class="eyebrow" data-i18n="fb.eyebrow">USER ACCEPTANCE TEST</span><h1 data-i18n="fb.title">แบบประเมินการใช้งานจริง</h1><p data-i18n="fb.subtitle"></p></div></div>
+
+          <div id="fb-thanks" class="panel empty-state" hidden><b data-i18n="fb.thanksTitle">ขอบคุณสำหรับความคิดเห็น</b><span data-i18n="fb.thanksBody">คำตอบของคุณถูกบันทึกไว้แล้ว</span></div>
+
+          <form id="fb-form" class="panel panel-wide">
+            <div class="panel-heading"><div><h3 data-i18n="fb.whoTitle">ข้อมูลผู้ทดสอบ</h3><p data-i18n="fb.whoSub">ใช้ประกอบรายงาน UAT เท่านั้น</p></div></div>
+            <div class="field-row">
+              <div>
+                <label for="fb-name" data-i18n="fb.name">ชื่อผู้ทดสอบ</label>
+                <input id="fb-name" required maxlength="120" data-i18n-placeholder="fb.namePlaceholder" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น">
+              </div>
+              <div>
+                <label for="fb-device" data-i18n="fb.device">อุปกรณ์ที่ใช้ทดสอบ</label>
+                <select id="fb-device">
+                  <option value="desktop" data-i18n="fb.deviceDesktop">คอมพิวเตอร์ / โน้ตบุ๊ก</option>
+                  <option value="tablet" data-i18n="fb.deviceTablet">แท็บเล็ต</option>
+                  <option value="mobile" data-i18n="fb.deviceMobile">โทรศัพท์มือถือ</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="panel-heading" style="margin-top:22px"><div><h3 data-i18n="fb.scenarioTitle">ผลการทำแต่ละสถานการณ์</h3><p data-i18n="fb.scenarioSub">ทำได้กี่ข้อก็ตอบเท่านั้น ไม่ต้องทำครบ</p></div></div>
+            <div id="fb-scenarios"></div>
+
+            <div class="panel-heading" style="margin-top:22px"><div><h3 data-i18n="fb.overallTitle">ความคิดเห็นโดยรวม</h3></div></div>
+
+            <label data-i18n="fb.ease">โดยรวมระบบนี้ใช้งานง่ายแค่ไหน</label>
+            <div id="fb-ease" class="fb-scale"></div>
+
+            <label for="fb-useful" data-i18n="fb.useful">ถ้าคุณเป็นเจ้าของร้านอาหารจริง ระบบนี้ช่วยงานได้จริงไหม</label>
+            <select id="fb-useful">
+              <option value="very" data-i18n="fb.usefulVery">ช่วยได้มาก</option>
+              <option value="some" data-i18n="fb.usefulSome">ช่วยได้บ้าง</option>
+              <option value="unsure" data-i18n="fb.usefulUnsure">ไม่แน่ใจ</option>
+              <option value="no" data-i18n="fb.usefulNo">ไม่ช่วย</option>
+            </select>
+
+            <label for="fb-confusing" data-i18n="fb.confusing">มีตรงไหนที่สับสนหรือหาไม่เจอบ้าง</label>
+            <textarea id="fb-confusing" rows="3" maxlength="2000" data-i18n-placeholder="fb.confusingPlaceholder" placeholder="ตอบตรง ๆ ได้เลย มีประโยชน์มากกว่าคำชม"></textarea>
+
+            <label for="fb-missing" data-i18n="fb.missing">มีอะไรที่ควรมีแต่ยังไม่มี</label>
+            <textarea id="fb-missing" rows="2" maxlength="2000"></textarea>
+
+            <label data-i18n="fb.accept">คุณยอมรับให้ระบบนี้นำไปใช้งานจริงได้หรือไม่</label>
+            <div class="result-options" id="fb-accept">
+              <input type="radio" id="fb-accept-yes" name="fb-accept" value="accepted"><label for="fb-accept-yes" class="pass" data-i18n="fb.acceptYes">ยอมรับ</label>
+              <input type="radio" id="fb-accept-fix" name="fb-accept" value="accepted_with_fixes"><label for="fb-accept-fix" class="na" data-i18n="fb.acceptFix">ยอมรับ แต่ต้องแก้บางจุด</label>
+              <input type="radio" id="fb-accept-no" name="fb-accept" value="rejected"><label for="fb-accept-no" class="fail" data-i18n="fb.acceptNo">ยังไม่ยอมรับ</label>
+            </div>
+            <textarea id="fb-accept-note" rows="2" maxlength="2000" data-i18n-placeholder="fb.acceptNotePlaceholder" placeholder="ถ้าต้องแก้ก่อน ระบุว่าต้องแก้อะไร"></textarea>
+
+            <div class="form-error" id="fb-error" hidden></div>
+            <button class="btn btn-primary" type="submit" style="margin-top:16px"><span data-i18n="fb.submit">ส่งความคิดเห็น</span></button>
+          </form>
+
+          <article class="panel panel-wide" id="fb-admin-panel" hidden style="margin-top:20px">
+            <div class="panel-heading"><div><h3 data-i18n="fb.adminTitle">คำตอบที่เก็บได้ (เฉพาะผู้ดูแลระบบ)</h3><p data-i18n="fb.adminSub">ใช้สำหรับสรุปรายงาน UAT</p></div></div>
+            <div id="fb-admin-list"></div>
+          </article>
         </section>
 
         <section id="view-testing" class="view" data-title-key="view.testing">

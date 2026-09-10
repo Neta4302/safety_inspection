@@ -185,7 +185,7 @@ textarea { resize: vertical; }
 .checklist-container { display: grid; gap: 14px; }.check-item { background: #fff; border: 1px solid var(--line); border-radius: 15px; padding: 20px; transition: .2s; }.check-item.missing { border-color: var(--red); box-shadow: 0 0 0 3px rgba(217,74,74,.08); }.check-item-head { display: flex; gap: 14px; align-items: flex-start; }.check-number { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--sky); color: var(--blue); font-weight: 900; font-size: 12px; }.check-copy { flex: 1; min-width: 0; }.check-copy h3 { margin: 0 0 6px; font-size: 15px; line-height: 1.5; }.check-copy p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.75; }
 /* Thai script stacks vowels and tone marks above/below the baseline, so form text
    needs more size and line-height than the dense dashboard tables to stay legible. */
-.result-options { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 6px; }.result-options input { position: absolute; opacity: 0; pointer-events: none; }.result-options label { margin: 0; border: 1.5px solid var(--line); border-radius: 10px; padding: 11px 18px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: #fff; transition: .15s; }.result-options label:hover { border-color: #aebbc3; background: #fafcfd; }.result-options input:focus-visible + label { box-shadow: 0 0 0 3px rgba(22,118,167,.25); }.result-options input:checked + label.pass { border-color: var(--green); color: var(--green); background: var(--mint); }.result-options input:checked + label.fail { border-color: var(--red); color: var(--red); background: #fff0f0; }.result-options input:checked + label.na { border-color: #8b9aa4; color: #4a5b66; background: #edf2f4; }
+.result-options { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 6px; }.result-options input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }.result-options label { margin: 0; border: 1.5px solid var(--line); border-radius: 10px; padding: 11px 18px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: #fff; transition: .15s; }.result-options label:hover { border-color: #aebbc3; background: #fafcfd; }.result-options input:focus-visible + label { box-shadow: 0 0 0 3px rgba(22,118,167,.25); }.result-options input:checked + label.pass { border-color: var(--green); color: var(--green); background: var(--mint); }.result-options input:checked + label.fail { border-color: var(--red); color: var(--red); background: #fff0f0; }.result-options input:checked + label.na { border-color: #8b9aa4; color: #4a5b66; background: #edf2f4; }
 .field-label { display: block; font-size: 12px; font-weight: 750; color: #43555f; margin: 0 0 7px; }
 .field-optional { font-weight: 600; color: #8998a3; }
 .check-extra { display: grid; gap: 8px; }
@@ -399,6 +399,32 @@ textarea { resize: vertical; }
 .photo-box.has-image { border-style: solid; border-color: var(--line); background: #fff; }
 /* Laptop-height screens: compress the marketing hero so the login/signup page fits
    on one screen instead of forcing the whole page to scroll. */
+/* --- UAT feedback form ------------------------------------------------------- */
+.fb-scale { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.fb-scale button {
+  flex: 1; min-width: 56px; padding: 10px 6px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  font-size: 14px; font-weight: 700;
+}
+.fb-scale button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.fb-row {
+  display: grid; grid-template-columns: 92px 1fr; gap: 10px 14px; align-items: start;
+  padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.fb-row:last-child { border-bottom: 0; }
+.fb-row > b { font-size: 13px; padding-top: 8px; }
+.fb-row .fb-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-row select, .fb-row input { margin: 0; }
+.fb-row .fb-note { grid-column: 1 / -1; }
+.fb-answer { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+.fb-answer h4 { margin: 0 0 4px; font-size: 15px; }
+.fb-answer .fb-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.fb-answer p { margin: 4px 0; font-size: 13px; line-height: 1.6; }
+@media (max-width: 760px) {
+  .fb-row { grid-template-columns: 1fr; }
+  .fb-row > b { padding-top: 0; }
+}
+
 /* A control the current role may not use: still visible, clearly inert. Showing it
    greyed rather than hiding it makes the permission model legible to a viewer. */
 .cap-denied { opacity: .45; cursor: not-allowed; }

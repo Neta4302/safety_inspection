@@ -40,6 +40,8 @@
     updateEquipment: (id, patch) => request(`/api/equipment/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
     addEquipment: equipment => request('/api/equipment', { method: 'POST', body: JSON.stringify(equipment) }),
     reset: () => request('/api/reset', { method: 'POST' }),
+    submitFeedback: payload => request('/api/feedback', { method: 'POST', body: JSON.stringify(payload) }),
+    getFeedback: () => request('/api/feedback'),
     // Raw binary upload — no base64 inflation, no multipart parsing needed.
     uploadMedia: file => request('/api/media', {
       method: 'POST',

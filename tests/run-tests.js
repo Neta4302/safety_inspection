@@ -155,7 +155,7 @@ async function unitTests() {
     assertEqual(db.requiredExtinguishers(40), 4, '40 tables');
   });
   await test('UT-15', 'capabilitiesFor returns exactly the inspector capability set', () => {
-    assertEqual(db.capabilitiesFor('inspector').sort(), ['alert.acknowledge', 'inspection.submit'], 'inspector caps');
+    assertEqual(db.capabilitiesFor('inspector').sort(), ['alert.acknowledge', 'feedback.submit', 'inspection.submit'], 'inspector caps');
   });
   await test('UT-16', 'capabilitiesFor returns an empty set for an unknown role', () => {
     assertEqual(db.capabilitiesFor('hacker'), [], 'unknown role');
@@ -222,6 +222,22 @@ async function integrationTests() {
     const boot = await api(cookie, '/api/bootstrap');
     assert(boot.body.venues.length > 0, 'a new user must not land on an empty dashboard');
     assert(boot.body.venues.every(v => v.branch === 'BKK-EAST'), 'should only see BKK-EAST venues');
+  });
+  await test('IT-09', 'A tester can submit UAT feedback and it is persisted', async () => {
+    const { cookie } = await login('inspector@safecheck.demo');
+    const before = (await api(cookie, '/api/bootstrap')).body.feedbackCount;
+    const sent = await api(cookie, '/api/feedback', {
+      method: 'POST',
+      body: {
+        testerName: 'IT-09 Tester', device: 'mobile', easeRating: 4,
+        usefulness: 'very', confusing: 'หาเมนูรายงานไม่เจอตอนแรก',
+        acceptance: 'accepted_with_fixes', acceptanceNote: 'ตัวหนังสือเล็กไปนิดหนึ่ง',
+        scenarios: [{ id: 'UAT-01', status: 'pass', difficulty: 2, note: '' }]
+      }
+    });
+    assertEqual(sent.status, 201, 'submit status');
+    const after = (await api(cookie, '/api/bootstrap')).body.feedbackCount;
+    assertEqual(after, before + 1, 'stored feedback count');
   });
 }
 
@@ -327,6 +343,18 @@ async function systemTests() {
     const boot = await api(admin.cookie, '/api/bootstrap');
     assertEqual(boot.body.venues.length, 6, 'seed venues restored');
   });
+  await test('ST-06', 'Resetting demo data does not destroy collected UAT feedback', async () => {
+    const insp = await login('inspector@safecheck.demo');
+    await api(insp.cookie, '/api/feedback', {
+      method: 'POST',
+      body: { testerName: 'ST-06 Tester', device: 'desktop', acceptance: 'accepted', scenarios: [] }
+    });
+    const admin = await login('admin@safecheck.demo');
+    const before = (await api(admin.cookie, '/api/bootstrap')).body.feedbackCount;
+    assertEqual((await api(admin.cookie, '/api/reset', { method: 'POST' })).status, 200, 'reset status');
+    const after = (await api(admin.cookie, '/api/bootstrap')).body.feedbackCount;
+    assertEqual(after, before, 'feedback count must survive a reset');
+  });
 }
 
 async function acceptanceTests() {
@@ -410,7 +438,9 @@ async function nonFunctionalTests() {
     assert(!/password/i.test(serialised), 'password field leaked in /api/me: ' + serialised);
   });
   await test('NFT-04', 'Repeated failed logins are throttled with HTTP 429', async () => {
-    const email = 'admin@safecheck.demo';
+    // A deliberately non-existent address: throttling counts failures the same way,
+    // and this cannot lock out a real account that a later test needs to log into.
+    const email = 'throttle-probe@safecheck.demo';
     const codes = [];
     for (let i = 0; i < 6; i++) {
       const res = await fetch(`${BASE}/api/login`, {
@@ -481,6 +511,28 @@ async function nonFunctionalTests() {
       }
     });
     assertEqual(r.status, 400, 'more than 3 files per item must be refused');
+  });
+  await test('NFT-11', 'A non-administrator cannot read other testers\u2019 feedback', async () => {
+    for (const role of ['inspector', 'safety', 'supervisor', 'manager']) {
+      const { cookie } = await login(role + '@safecheck.demo');
+      const direct = await api(cookie, '/api/feedback');
+      assertEqual(direct.status, 403, role + ' direct read');
+      const boot = await api(cookie, '/api/bootstrap');
+      assertEqual(boot.body.feedback, null, role + ' must not receive feedback in bootstrap');
+    }
+  });
+  await test('NFT-12', 'An administrator can read the collected feedback', async () => {
+    const { cookie } = await login('admin@safecheck.demo');
+    const r = await api(cookie, '/api/feedback');
+    assertEqual(r.status, 200, 'status');
+    assert(Array.isArray(r.body.feedback), 'expected an array of responses');
+    const boot = await api(cookie, '/api/bootstrap');
+    assert(Array.isArray(boot.body.feedback), 'admin bootstrap should carry the responses');
+  });
+  await test('NFT-13', 'Feedback submission is rejected without a tester name', async () => {
+    const { cookie } = await login('inspector@safecheck.demo');
+    const r = await api(cookie, '/api/feedback', { method: 'POST', body: { testerName: '   ' } });
+    assertEqual(r.status, 400, 'status');
   });
 }
 

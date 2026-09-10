@@ -272,13 +272,124 @@
     if (name === 'equipment') renderEquipment();
     if (name === 'standards') renderStandards();
     if (name === 'testing') renderTesting();
+    if (name === 'feedback') renderFeedback();
     $('.sidebar').classList.remove('open');
+  }
+
+  // --- UAT feedback -------------------------------------------------------------
+  // The six scenarios mirror UAT_KIT_TH.txt exactly, so a tester who read the kit
+  // sees the same numbering on screen.
+  const FB_SCENARIOS = ['UAT-01', 'UAT-02', 'UAT-03', 'UAT-04', 'UAT-05', 'UAT-06'];
+  let fbEase = 0;
+
+  function renderFeedbackForm() {
+    const host = $('#fb-scenarios');
+    if (!host || host.dataset.built === 'yes') return;
+    host.dataset.built = 'yes';
+    host.innerHTML = FB_SCENARIOS.map(id =>
+      '<div class="fb-row"><b>' + id + '</b><div>' +
+        '<div class="fb-controls">' +
+          '<select data-fb-status="' + id + '">' +
+            '<option value="">' + escapeHtml(t('fb.notDone')) + '</option>' +
+            '<option value="pass">' + escapeHtml(t('fb.pass')) + '</option>' +
+            '<option value="slow">' + escapeHtml(t('fb.slow')) + '</option>' +
+            '<option value="fail">' + escapeHtml(t('fb.fail')) + '</option>' +
+          '</select>' +
+          '<select data-fb-difficulty="' + id + '">' +
+            '<option value="">' + escapeHtml(t('fb.difficulty')) + '</option>' +
+            '<option value="1">1</option><option value="2">2</option><option value="3">3</option>' +
+            '<option value="4">4</option><option value="5">5</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="fb-note"><input data-fb-note="' + id + '" maxlength="500" placeholder="' +
+          escapeHtml(t('fb.notePlaceholder')) + '"></div>' +
+      '</div></div>').join('');
+
+    const scale = $('#fb-ease');
+    if (scale) {
+      scale.innerHTML = [1, 2, 3, 4, 5].map(v => '<button type="button" data-ease="' + v + '">' + v + '</button>').join('');
+      scale.onclick = e => {
+        const btn = e.target.closest('[data-ease]');
+        if (!btn) return;
+        fbEase = Number(btn.dataset.ease);
+        scale.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+      };
+    }
+  }
+
+  function feedbackAnswerHtml(r) {
+    const line = s => s.id + ': ' + escapeHtml(s.status || '-') +
+      (s.difficulty ? ' (' + s.difficulty + ')' : '') +
+      (s.note ? ' — ' + escapeHtml(s.note) : '');
+    return '<div class="fb-answer">' +
+      '<h4>' + escapeHtml(r.testerName) + '</h4>' +
+      '<div class="fb-meta">' + formatDate(r.createdAt) + ' · ' + escapeHtml(r.device || '-') + ' · ' + escapeHtml(r.roleUsed || '-') + '</div>' +
+      '<p><b>' + escapeHtml(t('fb.ease')) + ':</b> ' + (r.easeRating || '-') + '/5 · <b>' +
+        escapeHtml(t('fb.useful')) + ':</b> ' + escapeHtml(r.usefulness || '-') + '</p>' +
+      '<p><b>' + escapeHtml(t('fb.accept')) + ':</b> ' + escapeHtml(r.acceptance || '-') + ' ' + escapeHtml(r.acceptanceNote || '') + '</p>' +
+      (r.confusing ? '<p><b>' + escapeHtml(t('fb.confusing')) + ':</b> ' + escapeHtml(r.confusing) + '</p>' : '') +
+      (r.missing ? '<p><b>' + escapeHtml(t('fb.missing')) + ':</b> ' + escapeHtml(r.missing) + '</p>' : '') +
+      '<p>' + r.scenarios.map(line).join('<br>') + '</p>' +
+    '</div>';
+  }
+
+  function renderFeedback() {
+    renderFeedbackForm();
+    const pill = $('#nav-feedback-count');
+    if (pill) pill.textContent = (state.data && state.data.feedbackCount) || 0;
+
+    const panel = $('#fb-admin-panel');
+    if (!panel) return;
+    const rows = state.data && state.data.feedback;
+    // `feedback` is null unless the server decided this user may read it, so the panel
+    // cannot appear for anyone else — the data simply is not in the payload.
+    panel.hidden = !rows;
+    if (!rows) return;
+    $('#fb-admin-list').innerHTML = rows.length
+      ? rows.map(feedbackAnswerHtml).join('')
+      : '<div class="empty-state"><b>' + escapeHtml(t('fb.adminEmpty')) + '</b></div>';
+  }
+
+  async function submitFeedback() {
+    const errorEl = $('#fb-error');
+    hideFormError(errorEl);
+    const name = $('#fb-name').value.trim();
+    if (!name) { showFormError(errorEl, t('fb.errName')); return; }
+    const accept = document.querySelector('input[name="fb-accept"]:checked');
+    if (!accept) { showFormError(errorEl, t('fb.errAccept')); return; }
+
+    const scenarios = FB_SCENARIOS.map(id => ({
+      id,
+      status: $('[data-fb-status="' + id + '"]').value,
+      difficulty: Number($('[data-fb-difficulty="' + id + '"]').value) || null,
+      note: $('[data-fb-note="' + id + '"]').value.trim()
+    })).filter(s => s.status || s.note);
+
+    await withLoading($('#fb-form button[type=submit]'), t('fb.sending'), async () => {
+      await Api.submitFeedback({
+        testerName: name,
+        device: $('#fb-device').value,
+        scenarios,
+        easeRating: fbEase,
+        usefulness: $('#fb-useful').value,
+        confusing: $('#fb-confusing').value.trim(),
+        missing: $('#fb-missing').value.trim(),
+        acceptance: accept.value,
+        acceptanceNote: $('#fb-accept-note').value.trim()
+      });
+      await refreshData();
+      $('#fb-form').hidden = true;
+      $('#fb-thanks').hidden = false;
+      renderFeedback();
+      toast(t('fb.thanksToast'));
+    });
   }
 
   function renderAll() {
     renderDashboard(); renderVenues(); renderHistory(); renderActions();
     renderAlerts(); renderAlertHistory(); renderSensors(); renderEquipment();
     renderStandards(); renderTesting();
+    renderFeedback();
     renderScopeBanner(); applyCapabilities();
   }
 
@@ -1005,6 +1116,8 @@
       if (password !== confirmPw) { showFormError($('#signup-error'), t('auth.errPasswordMismatch')); return; }
       submitSignup({ name: $('#signup-name').value.trim(), email: $('#signup-email').value.trim(), password, role: $('#signup-role').value, branch: $('#signup-branch').value });
     });
+    const fbForm = $('#fb-form');
+    if (fbForm) fbForm.addEventListener('submit', e => { e.preventDefault(); submitFeedback(); });
     $$('[data-auth-tab]').forEach(btn => btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab)));
     $$('[data-lang-toggle]').forEach(btn => btn.addEventListener('click', toggleLanguage));
     // Quick-fill only prefills the credentials — the real login request still runs,
