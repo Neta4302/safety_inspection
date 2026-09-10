@@ -399,6 +399,24 @@ textarea { resize: vertical; }
 .photo-box.has-image { border-style: solid; border-color: var(--line); background: #fff; }
 /* Laptop-height screens: compress the marketing hero so the login/signup page fits
    on one screen instead of forcing the whole page to scroll. */
+.fb-intro { display: flex; flex-direction: column; gap: 3px; padding: 14px 18px; margin-bottom: 16px; border-left: 3px solid var(--teal); }
+.fb-intro b { font-size: 14px; }
+.fb-intro p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.fb-track-picker { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.fb-track-btn {
+  flex: 1 1 auto; min-width: 140px; padding: 12px 14px; border-radius: 11px; cursor: pointer;
+  border: 1.5px solid var(--line); background: var(--paper); color: var(--ink);
+  font-size: 13px; font-weight: 700; text-align: center; transition: .15s;
+}
+.fb-track-btn:hover { border-color: #aebbc3; background: #fafcfd; }
+.fb-track-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.fb-hint { margin: 0; padding: 18px; text-align: center; font-size: 13px; color: var(--muted);
+  border: 1px dashed var(--line); border-radius: 12px; }
+.fb-task { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.fb-code { font-size: 11px; font-weight: 700; letter-spacing: .5px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.fb-task b { font-size: 14px; }
+
 /* --- UAT feedback form ------------------------------------------------------- */
 .fb-scale { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .fb-scale button {
@@ -408,14 +426,13 @@ textarea { resize: vertical; }
 }
 .fb-scale button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
 .fb-row {
-  display: grid; grid-template-columns: 92px 1fr; gap: 10px 14px; align-items: start;
-  padding: 12px 0; border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
 }
 .fb-row:last-child { border-bottom: 0; }
-.fb-row > b { font-size: 13px; padding-top: 8px; }
 .fb-row .fb-controls { display: flex; flex-wrap: wrap; gap: 8px; }
-.fb-row select, .fb-row input { margin: 0; }
-.fb-row .fb-note { grid-column: 1 / -1; }
+.fb-row .fb-controls select { flex: 1 1 150px; margin: 0; }
+.fb-row .fb-note { margin: 0; }
 .fb-answer { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
 .fb-answer h4 { margin: 0 0 4px; font-size: 15px; }
 .fb-answer .fb-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }

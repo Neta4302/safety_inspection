@@ -277,33 +277,71 @@
   }
 
   // --- UAT feedback -------------------------------------------------------------
-  // The six scenarios mirror UAT_KIT_TH.txt exactly, so a tester who read the kit
-  // sees the same numbering on screen.
-  const FB_SCENARIOS = ['UAT-01', 'UAT-02', 'UAT-03', 'UAT-04', 'UAT-05', 'UAT-06'];
+  // A tester only ever runs one track, so showing all six tasks made the form look
+  // three times longer than the work they actually did. They also could not tell
+  // which task "UAT-03" referred to without going back to the instructions file, so
+  // each row now carries its Thai task name.
+  const FB_TASKS = {
+    'UAT-01': 'fb.task01', 'UAT-02': 'fb.task02', 'UAT-03': 'fb.task03',
+    'UAT-04': 'fb.task04', 'UAT-05': 'fb.task05', 'UAT-06': 'fb.task06'
+  };
+  const FB_TRACKS = {
+    A: ['UAT-01', 'UAT-02', 'UAT-06'],
+    B: ['UAT-03', 'UAT-04', 'UAT-06'],
+    C: ['UAT-05', 'UAT-06'],
+    ALL: ['UAT-01', 'UAT-02', 'UAT-03', 'UAT-04', 'UAT-05', 'UAT-06']
+  };
+  let fbTrack = '';
   let fbEase = 0;
 
-  function renderFeedbackForm() {
+  function fbScenarioRow(id) {
+    const opt = (v, key) => '<option value="' + v + '">' + escapeHtml(t(key)) + '</option>';
+    return '<div class="fb-row">' +
+      '<div class="fb-task">' +
+        '<span class="fb-code">' + id + '</span>' +
+        '<b>' + escapeHtml(t(FB_TASKS[id])) + '</b>' +
+      '</div>' +
+      '<div class="fb-controls">' +
+        '<select data-fb-status="' + id + '" aria-label="' + escapeHtml(t(FB_TASKS[id])) + '">' +
+          opt('', 'fb.notDone') + opt('pass', 'fb.pass') + opt('slow', 'fb.slow') + opt('fail', 'fb.fail') +
+        '</select>' +
+        '<select data-fb-difficulty="' + id + '" aria-label="' + escapeHtml(t('fb.difficulty')) + '">' +
+          '<option value="">' + escapeHtml(t('fb.difficulty')) + '</option>' +
+          '<option value="1">1</option><option value="2">2</option><option value="3">3</option>' +
+          '<option value="4">4</option><option value="5">5</option>' +
+        '</select>' +
+      '</div>' +
+      '<input class="fb-note" data-fb-note="' + id + '" maxlength="500" placeholder="' +
+        escapeHtml(t('fb.notePlaceholder')) + '">' +
+    '</div>';
+  }
+
+  function renderFeedbackTasks() {
     const host = $('#fb-scenarios');
-    if (!host || host.dataset.built === 'yes') return;
-    host.dataset.built = 'yes';
-    host.innerHTML = FB_SCENARIOS.map(id =>
-      '<div class="fb-row"><b>' + id + '</b><div>' +
-        '<div class="fb-controls">' +
-          '<select data-fb-status="' + id + '">' +
-            '<option value="">' + escapeHtml(t('fb.notDone')) + '</option>' +
-            '<option value="pass">' + escapeHtml(t('fb.pass')) + '</option>' +
-            '<option value="slow">' + escapeHtml(t('fb.slow')) + '</option>' +
-            '<option value="fail">' + escapeHtml(t('fb.fail')) + '</option>' +
-          '</select>' +
-          '<select data-fb-difficulty="' + id + '">' +
-            '<option value="">' + escapeHtml(t('fb.difficulty')) + '</option>' +
-            '<option value="1">1</option><option value="2">2</option><option value="3">3</option>' +
-            '<option value="4">4</option><option value="5">5</option>' +
-          '</select>' +
-        '</div>' +
-        '<div class="fb-note"><input data-fb-note="' + id + '" maxlength="500" placeholder="' +
-          escapeHtml(t('fb.notePlaceholder')) + '"></div>' +
-      '</div></div>').join('');
+    if (!host) return;
+    if (!fbTrack) {
+      host.innerHTML = '<p class="fb-hint">' + escapeHtml(t('fb.pickTrackFirst')) + '</p>';
+      return;
+    }
+    host.innerHTML = FB_TRACKS[fbTrack].map(fbScenarioRow).join('');
+  }
+
+  function renderFeedbackForm() {
+    const picker = $('#fb-track-picker');
+    if (!picker || picker.dataset.built === 'yes') return;
+    picker.dataset.built = 'yes';
+
+    picker.innerHTML = ['A', 'B', 'C', 'ALL']
+      .map(k => '<button type="button" class="fb-track-btn" data-track="' + k + '">' +
+        escapeHtml(t('fb.track' + k)) + '</button>').join('');
+    picker.onclick = e => {
+      const btn = e.target.closest('[data-track]');
+      if (!btn) return;
+      fbTrack = btn.dataset.track;
+      picker.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+      renderFeedbackTasks();
+    };
+    renderFeedbackTasks();
 
     const scale = $('#fb-ease');
     if (scale) {
@@ -318,9 +356,10 @@
   }
 
   function feedbackAnswerHtml(r) {
-    const line = s => s.id + ': ' + escapeHtml(s.status || '-') +
-      (s.difficulty ? ' (' + s.difficulty + ')' : '') +
-      (s.note ? ' — ' + escapeHtml(s.note) : '');
+    const line = s => (FB_TASKS[s.id] ? s.id + ' ' + escapeHtml(t(FB_TASKS[s.id])) : s.id) +
+      ' — ' + escapeHtml(s.status || '-') +
+      (s.difficulty ? ' (' + s.difficulty + '/5)' : '') +
+      (s.note ? ' · ' + escapeHtml(s.note) : '');
     return '<div class="fb-answer">' +
       '<h4>' + escapeHtml(r.testerName) + '</h4>' +
       '<div class="fb-meta">' + formatDate(r.createdAt) + ' · ' + escapeHtml(r.device || '-') + ' · ' + escapeHtml(r.roleUsed || '-') + '</div>' +
@@ -354,11 +393,12 @@
     const errorEl = $('#fb-error');
     hideFormError(errorEl);
     const name = $('#fb-name').value.trim();
-    if (!name) { showFormError(errorEl, t('fb.errName')); return; }
+    if (!name) { showFormError(errorEl, t('fb.errName')); $('#fb-name').focus(); return; }
+    if (!fbTrack) { showFormError(errorEl, t('fb.errTrack')); return; }
     const accept = document.querySelector('input[name="fb-accept"]:checked');
     if (!accept) { showFormError(errorEl, t('fb.errAccept')); return; }
 
-    const scenarios = FB_SCENARIOS.map(id => ({
+    const scenarios = FB_TRACKS[fbTrack].map(id => ({
       id,
       status: $('[data-fb-status="' + id + '"]').value,
       difficulty: Number($('[data-fb-difficulty="' + id + '"]').value) || null,

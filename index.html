@@ -411,13 +411,17 @@
         <section id="view-feedback" class="view" data-title-key="view.feedback">
           <div class="section-intro"><div><span class="eyebrow" data-i18n="fb.eyebrow">USER ACCEPTANCE TEST</span><h1 data-i18n="fb.title">แบบประเมินการใช้งานจริง</h1><p data-i18n="fb.subtitle"></p></div></div>
 
+          <div class="fb-intro panel">
+            <b data-i18n="fb.introTitle">ใช้เวลาประมาณ 2 นาที</b>
+            <p data-i18n="fb.introBody">ตอบเฉพาะงานที่คุณทำจริงพอ ข้อที่ไม่ได้ทำข้ามได้เลย ช่องที่มีเครื่องหมาย * เท่านั้นที่จำเป็นต้องกรอก</p>
+          </div>
           <div id="fb-thanks" class="panel empty-state" hidden><b data-i18n="fb.thanksTitle">ขอบคุณสำหรับความคิดเห็น</b><span data-i18n="fb.thanksBody">คำตอบของคุณถูกบันทึกไว้แล้ว</span></div>
 
           <form id="fb-form" class="panel panel-wide">
             <div class="panel-heading"><div><h3 data-i18n="fb.whoTitle">ข้อมูลผู้ทดสอบ</h3><p data-i18n="fb.whoSub">ใช้ประกอบรายงาน UAT เท่านั้น</p></div></div>
             <div class="field-row">
               <div>
-                <label for="fb-name" data-i18n="fb.name">ชื่อผู้ทดสอบ</label>
+                <label for="fb-name" data-i18n="fb.name">ชื่อผู้ทดสอบ *</label>
                 <input id="fb-name" required maxlength="120" data-i18n-placeholder="fb.namePlaceholder" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น">
               </div>
               <div>
@@ -430,7 +434,8 @@
               </div>
             </div>
 
-            <div class="panel-heading" style="margin-top:22px"><div><h3 data-i18n="fb.scenarioTitle">ผลการทำแต่ละสถานการณ์</h3><p data-i18n="fb.scenarioSub">ทำได้กี่ข้อก็ตอบเท่านั้น ไม่ต้องทำครบ</p></div></div>
+            <div class="panel-heading" style="margin-top:22px"><div><h3 data-i18n="fb.scenarioTitle">คุณได้รับมอบหมายแทร็กไหน</h3><p data-i18n="fb.scenarioSub">กดเลือกแทร็กของคุณ แล้วระบบจะแสดงเฉพาะงานของแทร็กนั้น</p></div></div>
+            <div id="fb-track-picker" class="fb-track-picker"></div>
             <div id="fb-scenarios"></div>
 
             <div class="panel-heading" style="margin-top:22px"><div><h3 data-i18n="fb.overallTitle">ความคิดเห็นโดยรวม</h3></div></div>
@@ -452,7 +457,7 @@
             <label for="fb-missing" data-i18n="fb.missing">มีอะไรที่ควรมีแต่ยังไม่มี</label>
             <textarea id="fb-missing" rows="2" maxlength="2000"></textarea>
 
-            <label data-i18n="fb.accept">คุณยอมรับให้ระบบนี้นำไปใช้งานจริงได้หรือไม่</label>
+            <label data-i18n="fb.accept">คุณยอมรับให้ระบบนี้นำไปใช้งานจริงได้หรือไม่ *</label>
             <div class="result-options" id="fb-accept">
               <input type="radio" id="fb-accept-yes" name="fb-accept" value="accepted"><label for="fb-accept-yes" class="pass" data-i18n="fb.acceptYes">ยอมรับ</label>
               <input type="radio" id="fb-accept-fix" name="fb-accept" value="accepted_with_fixes"><label for="fb-accept-fix" class="na" data-i18n="fb.acceptFix">ยอมรับ แต่ต้องแก้บางจุด</label>
