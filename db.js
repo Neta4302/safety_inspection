@@ -530,7 +530,7 @@ function getEquipmentCompliance(user) {
   });
 }
 
-function bootstrap(user) {
+async function bootstrap(user) {
   const venues = getVenues(user);
   const ids = visibleVenueIds(user);
   return {
@@ -542,8 +542,9 @@ function bootstrap(user) {
     checklistItems: getChecklistItems(),
     // Lets the UI explain *why* it is showing a subset and grey out actions this role
     // cannot perform — without the UI ever being the thing that enforces it.
-    feedbackCount: feedbackCount(),
-    feedback: can(user, 'feedback.read') ? getFeedback(user) : null,
+    feedbackCount: await feedbackCount(),
+    feedback: can(user, 'feedback.read') ? await getFeedback(user) : null,
+    feedbackBackend: feedbackBackend(),
     scope: {
       role: user.role,
       branch: user.branch || '',
@@ -730,41 +731,128 @@ function resetAll(user) {
 }
 
 // --- User Acceptance Test feedback ------------------------------------------------
-// Deliberately NOT filtered by venue scope: a UAT response is about the product as a
-// whole, not about one venue's data. It is gated by capability instead — anyone
-// signed in may submit one, only an administrator may read them back.
-function addFeedback(body, user) {
-  assertCan(user, 'feedback.submit');
-  const name = (body.testerName || '').trim();
-  if (!name) throw new Error('กรุณากรอกชื่อผู้ทดสอบ');
-  const scenarios = Array.isArray(body.scenarios) ? body.scenarios : [];
-  const id = genId('UAT');
-  db.prepare(`INSERT INTO uat_feedback
-      (id, user_id, tester_name, role_used, device, scenarios_json, ease_rating,
-       usefulness, confusing, missing, acceptance, acceptance_note, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(id, user.id, name.slice(0, 120), user.role, (body.device || '').slice(0, 40),
-      JSON.stringify(scenarios), Number(body.easeRating) || null,
-      (body.usefulness || '').slice(0, 40), (body.confusing || '').slice(0, 2000),
-      (body.missing || '').slice(0, 2000), (body.acceptance || '').slice(0, 40),
-      (body.acceptanceNote || '').slice(0, 2000), new Date().toISOString());
-  return { id };
+// UAT responses are the one kind of data in this system that cannot be recreated: if
+// they are lost, real people have to be asked to test all over again. Render's free
+// tier has no persistent disk, so the SQLite file is rebuilt from seed whenever the
+// instance restarts — which was observed happening in under an hour. Responses
+// therefore go to PostgreSQL when DATABASE_URL is configured.
+//
+// Two backends behind one interface:
+//   DATABASE_URL set    -> PostgreSQL (durable; used in production)
+//   DATABASE_URL unset  -> SQLite     (used locally and by the test suite)
+//
+// `pg` is required lazily inside the Postgres branch only, so a machine with no
+// node_modules can still run the whole system exactly as before.
+const PG_URL = process.env.DATABASE_URL || '';
+const USE_PG = !!PG_URL;
+
+let pgPool = null;
+let pgReady = null;
+
+function getPool() {
+  if (!pgPool) {
+    const { Pool } = require('pg');
+    pgPool = new Pool({
+      connectionString: PG_URL,
+      // Full certificate verification, confirmed working against Neon. Passing an
+      // ssl object here also overrides whatever sslmode= happens to be in the URL,
+      // so the transport cannot be silently downgraded by editing the connection
+      // string.
+      ssl: true,
+      max: 3,
+      idleTimeoutMillis: 30000
+    });
+  }
+  return pgPool;
 }
 
-function getFeedback(user) {
-  assertCan(user, 'feedback.read');
-  return db.prepare('SELECT * FROM uat_feedback ORDER BY created_at DESC').all().map(r => ({
+// Creates the table once per process, not once per query.
+function ensureFeedbackSchema() {
+  if (!pgReady) {
+    pgReady = getPool().query(`
+      CREATE TABLE IF NOT EXISTS uat_feedback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        tester_name TEXT NOT NULL,
+        role_used TEXT,
+        device TEXT,
+        scenarios_json TEXT NOT NULL DEFAULT '[]',
+        ease_rating INTEGER,
+        usefulness TEXT,
+        confusing TEXT,
+        missing TEXT,
+        acceptance TEXT,
+        acceptance_note TEXT,
+        created_at TEXT NOT NULL
+      )
+    `).catch(err => { pgReady = null; throw err; });
+  }
+  return pgReady;
+}
+
+function feedbackRow(r) {
+  return {
     id: r.id, testerName: r.tester_name, roleUsed: r.role_used, device: r.device,
     scenarios: JSON.parse(r.scenarios_json || '[]'), easeRating: r.ease_rating,
     usefulness: r.usefulness, confusing: r.confusing, missing: r.missing,
     acceptance: r.acceptance, acceptanceNote: r.acceptance_note, createdAt: r.created_at
-  }));
+  };
 }
 
-// How many responses exist, so every tester can see the count without being able to
-// read anyone else's answers.
-function feedbackCount() {
+async function addFeedback(body, user) {
+  assertCan(user, 'feedback.submit');
+  const name = (body.testerName || '').trim();
+  if (!name) throw new Error('กรุณากรอกชื่อผู้ทดสอบ');
+  const values = [
+    genId('UAT'), user.id, name.slice(0, 120), user.role, (body.device || '').slice(0, 40),
+    JSON.stringify(Array.isArray(body.scenarios) ? body.scenarios : []),
+    Number(body.easeRating) || null, (body.usefulness || '').slice(0, 40),
+    (body.confusing || '').slice(0, 2000), (body.missing || '').slice(0, 2000),
+    (body.acceptance || '').slice(0, 40), (body.acceptanceNote || '').slice(0, 2000),
+    new Date().toISOString()
+  ];
+  const columns = '(id, user_id, tester_name, role_used, device, scenarios_json, ease_rating, usefulness, confusing, missing, acceptance, acceptance_note, created_at)';
+  if (USE_PG) {
+    await ensureFeedbackSchema();
+    await getPool().query('INSERT INTO uat_feedback ' + columns + ' VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)', values);
+  } else {
+    db.prepare('INSERT INTO uat_feedback ' + columns + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(...values);
+  }
+  return { id: values[0], storedIn: USE_PG ? 'postgres' : 'sqlite' };
+}
+
+async function getFeedback(user) {
+  assertCan(user, 'feedback.read');
+  if (USE_PG) {
+    await ensureFeedbackSchema();
+    const res = await getPool().query('SELECT * FROM uat_feedback ORDER BY created_at DESC');
+    return res.rows.map(feedbackRow);
+  }
+  return db.prepare('SELECT * FROM uat_feedback ORDER BY created_at DESC').all().map(feedbackRow);
+}
+
+// The count is visible to every signed-in user so a tester can confirm their own
+// submission landed, without being able to read anyone else's answers.
+async function feedbackCount() {
+  if (USE_PG) {
+    try {
+      await ensureFeedbackSchema();
+      const res = await getPool().query('SELECT COUNT(*) AS n FROM uat_feedback');
+      return Number(res.rows[0].n);
+    } catch (err) {
+      // A database hiccup must not take down the whole dashboard, which is what
+      // returning a count from bootstrap would otherwise do.
+      console.error('feedbackCount failed:', err.message);
+      return 0;
+    }
+  }
   return db.prepare('SELECT COUNT(*) AS n FROM uat_feedback').get().n;
+}
+
+// Reports which backend is actually in use, so the UI can say so honestly rather
+// than the deployment silently falling back to a store that loses data.
+function feedbackBackend() {
+  return USE_PG ? 'postgres' : 'sqlite';
 }
 
 // --- Auth operations -------------------------------------------------------------
@@ -837,6 +925,6 @@ module.exports = {
   updateEquipment, addEquipment, resetAll, requiredExtinguishers,
   createUser, verifyLogin, createSession, getSessionUser, deleteSession,
   addMedia, getMedia, deleteMedia, MEDIA_LIMITS,
-  addFeedback, getFeedback, feedbackCount,
+  addFeedback, getFeedback, feedbackCount, feedbackBackend,
   can, capabilitiesFor, visibleVenueIds, BRANCHES, CAPABILITIES, SELF_SIGNUP_ROLES
 };

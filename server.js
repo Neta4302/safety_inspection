@@ -5,6 +5,12 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+// Load .env before requiring ./db, which reads DATABASE_URL at module load. Node
+// does not read .env on its own, and the desktop launcher runs a plain
+// `node server.js`, so this has to happen in-process rather than via a CLI flag.
+// Optional by design: with no .env the app falls back to local SQLite.
+try { process.loadEnvFile(); } catch { /* no .env file present */ }
+
 const db = require('./db');
 
 const PORT = process.env.PORT || 4173;
@@ -237,7 +243,7 @@ async function handleApi(req, res, pathname, method) {
     if (!user) return sendJson(res, 401, { error: 'กรุณาเข้าสู่ระบบ' });
 
     if (pathname === '/api/bootstrap' && method === 'GET') {
-      return sendJson(res, 200, db.bootstrap(user));
+      return sendJson(res, 200, await db.bootstrap(user));
     }
     if (pathname === '/api/inspections' && method === 'POST') {
       const body = await readBody(req);
@@ -293,10 +299,10 @@ async function handleApi(req, res, pathname, method) {
     // the feedback.read capability, which only an administrator has.
     if (pathname === '/api/feedback' && method === 'POST') {
       const body = await readBody(req);
-      return sendJson(res, 201, db.addFeedback(body, user));
+      return sendJson(res, 201, await db.addFeedback(body, user));
     }
     if (pathname === '/api/feedback' && method === 'GET') {
-      return sendJson(res, 200, { feedback: db.getFeedback(user) });
+      return sendJson(res, 200, { feedback: await db.getFeedback(user) });
     }
     if (pathname === '/api/reset' && method === 'POST') {
       db.resetAll(user);
