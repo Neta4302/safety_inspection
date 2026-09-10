@@ -1,0 +1,13 @@
+{
+  "name": "safecheck-demo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "SafeCheck Safety Inspection Management — functional demo with a real SQLite-backed database.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

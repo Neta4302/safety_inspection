@@ -1,0 +1,18 @@
+# The SQLite database and any uploaded evidence are generated at runtime and are
+# recreated (and re-seeded) automatically on first start. Committing them would push
+# demo uploads and password hashes to GitHub.
+data/
+
+# Secrets. Only .env.example belongs in the repository.
+.env
+.env.*
+!.env.example
+
+node_modules/
+npm-debug.log*
+
+# Windows / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/

@@ -1,0 +1,24 @@
+# Render deployment config for SafeCheck.
+# Render reads this automatically when the repository is connected as a Blueprint.
+#
+# NODE_VERSION is pinned to 24 on purpose: SafeCheck uses the built-in node:sqlite
+# module, which only imports without a command-line flag from Node 23.4 onwards.
+# Render's default Node is older, so leaving this out makes the deploy fail at boot.
+#
+# TRUST_PROXY tells the app it is behind Render's TLS proxy, so it marks session
+# cookies Secure and reads the real client IP from x-forwarded-for. It must stay
+# unset locally, where those headers are attacker-controlled rather than proxy-set.
+services:
+  - type: web
+    name: safecheck
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: TRUST_PROXY
+        value: "true"
