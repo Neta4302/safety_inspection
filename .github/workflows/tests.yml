@@ -1,0 +1,32 @@
+# Runs both test suites on GitHub's servers for every push to main, so the results
+# are independent, timestamped evidence rather than output from one developer's
+# machine. Neither job has DATABASE_URL, so the app uses its local SQLite path and
+# the tests never touch the production database.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  blackbox:
+    name: Black-box tests (API, system, acceptance, security)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run test:blackbox
+
+  whitebox:
+    name: White-box tests (core.js, branch coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run test:whitebox

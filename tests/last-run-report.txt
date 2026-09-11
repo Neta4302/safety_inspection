@@ -1,6 +1,6 @@
 ================================================================================================
   SafeCheck — Test Result Report
-  Generated: 2026-09-10 08:12:42    Node: v24.18.1    Platform: win32
+  Generated: 2026-09-11 06:39:50    Node: v24.18.1    Platform: win32
 ================================================================================================
 
 Unit Testing  —  16/16 passed
@@ -28,54 +28,54 @@ Integration Testing  —  9/9 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
-  IT-01   Successful login issues an HttpOnly session cookie                  PASS    31 ms
-  IT-02   Bootstrap without a session is refused with 401                     PASS    3 ms
+  IT-01   Successful login issues an HttpOnly session cookie                  PASS    33 ms
+  IT-02   Bootstrap without a session is refused with 401                     PASS    2 ms
   IT-03   Bootstrap with a valid session returns data and scope               PASS    49 ms
-  IT-04   Logout invalidates the session server-side, not just the cookie     PASS    75 ms
-  IT-05   Wrong password is rejected and starts no session                    PASS    42 ms
+  IT-04   Logout invalidates the session server-side, not just the cookie     PASS    74 ms
+  IT-05   Wrong password is rejected and starts no session                    PASS    25 ms
   IT-06   Uploaded evidence is stored and returned byte-identical             PASS    51 ms
-  IT-07   A newly registered account can immediately log in                   PASS    104 ms
-  IT-08   Signup assigns the venues of the branch that was chosen             PASS    65 ms
-  IT-09   A tester can submit UAT feedback and it is persisted                PASS    78 ms
+  IT-07   A newly registered account can immediately log in                   PASS    88 ms
+  IT-08   Signup assigns the venues of the branch that was chosen             PASS    82 ms
+  IT-09   A tester can submit UAT feedback and it is persisted                PASS    76 ms
 
 System Testing  —  6/6 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
-  ST-01   A submitted inspection is scored and appears in history             PASS    92 ms
-  ST-02   A failed item becomes a corrective action whose status can be upda  PASS    94 ms
-  ST-03   An alert runs the full notified -> acknowledged -> closed lifecycl  PASS    123 ms
-  ST-04   Purchasing equipment clears the venue shortfall                     PASS    76 ms
-  ST-05   Reset restores demo data without deleting user accounts             PASS    247 ms
-  ST-06   Resetting demo data does not destroy collected UAT feedback         PASS    233 ms
+  ST-01   A submitted inspection is scored and appears in history             PASS    61 ms
+  ST-02   A failed item becomes a corrective action whose status can be upda  PASS    92 ms
+  ST-03   An alert runs the full notified -> acknowledged -> closed lifecycl  PASS    122 ms
+  ST-04   Purchasing equipment clears the venue shortfall                     PASS    77 ms
+  ST-05   Reset restores demo data without deleting user accounts             PASS    260 ms
+  ST-06   Resetting demo data does not destroy collected UAT feedback         PASS    247 ms
 
 Acceptance Testing  —  7/7 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
-  AT-01   REQ-1 Safety standards are documented with codes and sources        PASS    0 ms
+  AT-01   REQ-1 Safety standards are documented with codes and sources        PASS    1 ms
   AT-02   REQ-2 AI detection criteria are defined and measurable              PASS    0 ms
-  AT-03   REQ-3 Three alert levels exist and drive different handling         PASS    53 ms
+  AT-03   REQ-3 Three alert levels exist and drive different handling         PASS    69 ms
   AT-04   REQ-4 Sensor and equipment catalogue is documented                  PASS    0 ms
   AT-05   REQ-5 Test environments and pass criteria are documented            PASS    0 ms
-  AT-06   REQ-6 All required screens are present in the interface             PASS    1 ms
+  AT-06   REQ-6 All required screens are present in the interface             PASS    0 ms
   AT-07   REQ-7 CCTV is documented as a sensor feeding the AI pipeline        PASS    0 ms
 
 Non-Functional Testing  —  13/13 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
-  NFT-01  Bootstrap responds in under 500 ms                                  PASS    43 ms
+  NFT-01  Bootstrap responds in under 500 ms                                  PASS    44 ms
   NFT-02  Passwords are stored hashed and salted, never in plain text         PASS    1 ms
-  NFT-03  The API never returns password hashes or salts                      PASS    42 ms
-  NFT-04  Repeated failed logins are throttled with HTTP 429                  PASS    80 ms
-  NFT-05  Public signup cannot grant an elevated role                         PASS    47 ms
-  NFT-06  Out-of-scope venue data is never sent to the client                 PASS    46 ms
-  NFT-07  A write to an out-of-scope venue is refused with 403                PASS    62 ms
-  NFT-08  An action the role lacks is refused even when called directly       PASS    107 ms
+  NFT-03  The API never returns password hashes or salts                      PASS    44 ms
+  NFT-04  Repeated failed logins are throttled with HTTP 429                  PASS    92 ms
+  NFT-05  Public signup cannot grant an elevated role                         PASS    46 ms
+  NFT-06  Out-of-scope venue data is never sent to the client                 PASS    47 ms
+  NFT-07  A write to an out-of-scope venue is refused with 403                PASS    60 ms
+  NFT-08  An action the role lacks is refused even when called directly       PASS    92 ms
   NFT-09  Disallowed file types are rejected on upload                        PASS    46 ms
   NFT-10  The per-item evidence cap is enforced by the server, not the UI     PASS    47 ms
-  NFT-11  A non-administrator cannot read other testers’ feedback             PASS    276 ms
+  NFT-11  A non-administrator cannot read other testers’ feedback             PASS    230 ms
   NFT-12  An administrator can read the collected feedback                    PASS    61 ms
   NFT-13  Feedback submission is rejected without a tester name               PASS    46 ms
 

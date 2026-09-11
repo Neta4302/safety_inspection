@@ -115,7 +115,9 @@ textarea { resize: vertical; }
 .sidebar .brand-lockup { padding: 0 9px 26px; border-bottom: 1px solid rgba(255,255,255,.08); }
 .main-nav { margin-top: 24px; display: grid; gap: 6px; }
 .main-nav button { color: rgba(255,255,255,.66); border: 0; background: transparent; padding: 12px 13px; border-radius: 11px; display: flex; align-items: center; gap: 12px; text-align: left; font-weight: 650; font-size: 13px; }
-.main-nav button span { width: 24px; text-align: center; font-size: 16px; }
+/* Only the first span is the icon. The old selector matched the label span too, forcing it to 24px so Thai labels wrapped one syllable per line. */
+.main-nav button span:first-child { flex: 0 0 24px; width: 24px; text-align: center; font-size: 16px; }
+.main-nav button span + span { flex: 1 1 auto; min-width: 0; }
 .main-nav button:hover, .main-nav button.active { color: #fff; background: rgba(255,255,255,.10); }
 .main-nav button.active { box-shadow: inset 3px 0 0 #43d2c2; }
 .main-nav em { margin-left: auto; font-style: normal; min-width: 21px; height: 21px; display: grid; place-items: center; border-radius: 99px; background: var(--red); font-size: 10px; }

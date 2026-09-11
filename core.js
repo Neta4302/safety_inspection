@@ -18,9 +18,13 @@
 
   function validateInspection(items) {
     const list = normalizeItems(items);
+    // The position fallback must be the item's place in the original checklist.
+    // Mapping after filtering would number it within the filtered subset instead,
+    // pointing the inspector at the wrong row (found by white-box test).
     const missingIds = list
-      .filter(item => !item || !['pass', 'fail', 'na'].includes(item.result))
-      .map((item, index) => (item && item.id) || String(index + 1));
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => !item || !['pass', 'fail', 'na'].includes(item.result))
+      .map(({ item, index }) => (item && item.id) || String(index + 1));
 
     // Evidence rule (required_on_fail / required_always / optional / none) — only
     // checked once an item has a result, so this never fights with missingIds above.
