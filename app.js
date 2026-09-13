@@ -6,15 +6,21 @@
   const t = (k, v) => I18n.t(k, v);
   const content = () => I18n.content();
 
-  const ROLE_KEYS = ['inspector', 'safety', 'supervisor', 'manager', 'admin'];
+  const Workflow = window.SafeCheckWorkflow;
+  const ROLE_KEYS = ['user', 'inspector', 'supervisor', 'manager', 'admin'];
   function roleMeta(role) {
-    const key = ROLE_KEYS.includes(role) ? role : 'inspector';
+    const key = ROLE_KEYS.includes(role) ? role : 'user';
     return { label: t(`role.${key}.label`), th: t(`role.${key}.th`), permissions: t(`role.${key}.perm`) };
   }
 
   const state = { user: null, data: null, currentInspection: null, reportInspectionId: null };
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
+
+  // Screens that live in their own files (approvals.js, admin.js) register here, so this
+  // file can route to them without knowing their internals.
+  const extraViews = {};
+  function registerView(name, view) { extraViews[name] = view; }
 
   // --- Language-aware accessors for database-stored content ------------------------
   const isEn = () => I18n.getLang() === 'en';
@@ -56,6 +62,42 @@
   }
   const CAMERA_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.6"/></svg>';
 
+  // Picture beside each checklist item. UAT testers found a text-only checklist hard to
+  // relate to the real equipment, so each item shows what to look at.
+  const ILLUSTRATIONS = {
+    exit: '<rect x="12" y="8" width="26" height="48" rx="2" fill="#e8f5fa" stroke="#123956" stroke-width="3"/><circle cx="32" cy="33" r="2.5" fill="#123956"/><path d="M42 32h16m-7-7 7 7-7 7" stroke="#16a59b" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    extinguisher: '<rect x="22" y="18" width="20" height="40" rx="9" fill="#d94a4a"/><rect x="27" y="10" width="10" height="9" rx="2" fill="#123956"/><path d="M37 13h10l4 4" stroke="#123956" stroke-width="3" fill="none" stroke-linecap="round"/><rect x="26" y="30" width="12" height="12" rx="2" fill="#fff" opacity=".85"/>',
+    gauge: '<circle cx="32" cy="34" r="22" fill="#fff" stroke="#123956" stroke-width="3"/><path d="M15 40a18 18 0 0 1 11-22" stroke="#d94a4a" stroke-width="5" fill="none"/><path d="M29 16a18 18 0 0 1 21 23" stroke="#16a59b" stroke-width="5" fill="none"/><path d="M32 34l11-9" stroke="#123956" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="34" r="3" fill="#123956"/>',
+    emlight: '<rect x="10" y="20" width="44" height="18" rx="4" fill="#e8f5fa" stroke="#123956" stroke-width="3"/><circle cx="21" cy="29" r="5" fill="#f0a51b"/><circle cx="43" cy="29" r="5" fill="#f0a51b"/><circle cx="32" cy="29" r="2" fill="#16a59b"/><path d="M21 43v9M43 43v9M14 45l-4 6M50 45l4 6" stroke="#f0a51b" stroke-width="3" stroke-linecap="round"/>',
+    battery: '<rect x="10" y="20" width="38" height="24" rx="4" fill="#e8f5fa" stroke="#123956" stroke-width="3"/><rect x="48" y="27" width="5" height="10" rx="1" fill="#123956"/><path d="M31 23l-8 11h7l-3 8 10-12h-7l3-7z" fill="#f0a51b"/>',
+    exitsign: '<rect x="6" y="18" width="52" height="28" rx="4" fill="#16a59b"/><text x="25" y="37" font-size="13" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial, sans-serif">EXIT</text><path d="M43 32h9m-4-4 4 4-4 4" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>',
+    kitchen: '<path d="M10 26h34v4a12 12 0 0 1-12 12H22a12 12 0 0 1-12-12z" fill="#123956"/><path d="M44 28h12" stroke="#123956" stroke-width="4" stroke-linecap="round"/><path d="M27 60c-6-2-6-8-2-12 0 3 2 4 3 3-1-4 2-7 5-9 0 5 6 7 5 12-1 4-4 6-7 6z" fill="#f0a51b"/><path d="M20 18c0-3 3-3 3-6M28 18c0-3 3-3 3-6M36 18c0-3 3-3 3-6" stroke="#9aa8b1" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    alarm: '<path d="M20 44V30a12 12 0 0 1 24 0v14l4 5H16z" fill="#d94a4a"/><circle cx="32" cy="54" r="4" fill="#123956"/><path d="M10 26a24 24 0 0 1 6-11M54 26a24 24 0 0 0-6-11" stroke="#f0a51b" stroke-width="3" fill="none" stroke-linecap="round"/>',
+    sprinkler: '<path d="M6 10h52" stroke="#123956" stroke-width="4" stroke-linecap="round"/><rect x="28" y="10" width="8" height="10" fill="#123956"/><path d="M22 22h20l-4 6H26z" fill="#d94a4a"/><path d="M20 36l-4 8M32 34v10M44 36l4 8M26 48l-2 7M38 48l2 7" stroke="#1676a7" stroke-width="3" stroke-linecap="round"/>',
+    plan: '<rect x="8" y="10" width="48" height="44" rx="3" fill="#fff" stroke="#123956" stroke-width="3"/><path d="M8 30h20V10M36 54V36h20" stroke="#9aa8b1" stroke-width="2" fill="none"/><path d="M18 20v22h24" stroke="#16a59b" stroke-width="3" fill="none" stroke-dasharray="4 3"/><circle cx="46" cy="42" r="5" fill="#d94a4a"/>',
+    people: '<circle cx="17" cy="24" r="7" fill="#1676a7"/><circle cx="47" cy="24" r="7" fill="#1676a7"/><circle cx="32" cy="20" r="8" fill="#123956"/><path d="M5 50a12 12 0 0 1 24 0zM35 50a12 12 0 0 1 24 0z" fill="#1676a7"/><path d="M18 52a14 14 0 0 1 28 0z" fill="#123956"/>',
+    electric: '<rect x="14" y="8" width="36" height="48" rx="4" fill="#e8f5fa" stroke="#123956" stroke-width="3"/><path d="M36 15l-13 19h9l-4 15 14-20h-9l3-14z" fill="#f0a51b"/>',
+    document: '<path d="M16 8h24l10 10v38H16z" fill="#fff" stroke="#123956" stroke-width="3" stroke-linejoin="round"/><path d="M40 8v10h10" fill="none" stroke="#123956" stroke-width="3"/><path d="M22 28h20M22 35h20M22 42h10" stroke="#9aa8b1" stroke-width="2.5" stroke-linecap="round"/><circle cx="44" cy="46" r="9" fill="#16a59b"/><path d="M40 46l3 3 5-6" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>'
+  };
+  const ITEM_ILLUSTRATION = {
+    'DLY-01': 'exit', 'DLY-02': 'extinguisher', 'DLY-03': 'emlight', 'DLY-04': 'exitsign', 'DLY-05': 'kitchen',
+    'MON-01': 'alarm', 'MON-02': 'gauge', 'MON-03': 'sprinkler', 'MON-04': 'battery', 'MON-05': 'plan', 'MON-06': 'people',
+    'YRL-01': 'extinguisher', 'YRL-02': 'alarm', 'YRL-03': 'sprinkler', 'YRL-04': 'electric', 'YRL-05': 'document'
+  };
+  function checkIllustration(id) {
+    const key = ITEM_ILLUSTRATION[id] || 'document';
+    // Yearly items are certificates, so their picture carries a small document badge.
+    const badge = String(id).startsWith('YRL-') && key !== 'document'
+      ? '<g transform="translate(34 34) scale(.46)">' + ILLUSTRATIONS.document + '</g>' : '';
+    return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">${ILLUSTRATIONS[key]}${badge}</svg>`;
+  }
+
+  function howToHtml(item) {
+    const steps = (content().checkGuides || {})[item.id];
+    if (!steps) return '';
+    return `<details class="howto"><summary>💡 ${escapeHtml(t('insp.howTo'))}</summary><ol>${steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol></details>`;
+  }
+
   function alertLevelText(l) { return t(`lvl.${l}`); }
   function alertStatusText(s) { return t(`alerts.st.${s}`); }
   function frequencyText(f) { return t(`freq.${f}`); }
@@ -66,7 +108,59 @@
   function actionText(status) { return ({ open: t('act.open'), in_progress: t('act.inProgress'), closed: t('act.closed') })[status] || t('act.open'); }
   function scoreClass(score) { return score < 70 ? 'low' : score < 85 ? 'mid' : ''; }
   function escapeHtml(text = '') { return String(text).replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[c]); }
-  function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 2500); }
+  function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 3200); }
+
+  // Server errors carry a stable code; show the translated sentence when there is one.
+  function errorText(err) {
+    if (err && err.code) { const translated = t(err.code); if (translated !== err.code) return translated; }
+    return (err && err.message) || t('common.unknownError');
+  }
+
+  // --- Approval stage and deadline display -----------------------------------------------
+  function stageOf(ins) { return ins.status === 'draft' ? 'draft' : (ins.reviewStatus || 'approved'); }
+  function isActive(ins) { const stage = stageOf(ins); return stage !== 'draft' && stage !== 'rejected'; }
+  function stageBadgeHtml(ins) {
+    const stage = stageOf(ins);
+    return `<span class="stage-badge stage-${stage}">${escapeHtml(t('stage.' + stage))}</span>`;
+  }
+  function durationText(ms) {
+    const minutes = Math.max(1, Math.round(Math.abs(ms) / 60000));
+    if (minutes >= 1440) return t('time.days', { n: Math.floor(minutes / 1440) });
+    if (minutes >= 60) return t('time.hours', { n: Math.floor(minutes / 60) });
+    return t('time.minutes', { n: minutes });
+  }
+  // Only meaningful while a record is still waiting for someone to act on it.
+  function deadlineInfo(ins) {
+    const stage = stageOf(ins);
+    if (!ins.deadline || (stage !== 'pending_review' && stage !== 'pending_approval')) return null;
+    const state = Workflow.deadlineState(ins.deadline, ins.frequency);
+    const diff = new Date(ins.deadline).getTime() - Date.now();
+    const text = state === 'overdue' ? t('dl.overdue', { time: durationText(diff) })
+      : state === 'due_soon' ? t('dl.dueSoon', { time: durationText(diff) })
+      : t('dl.onTrack', { date: formatDate(ins.deadline) });
+    return { state, text };
+  }
+  function deadlineBadgeHtml(ins) {
+    const info = deadlineInfo(ins);
+    if (info) return `<span class="deadline-badge dl-${info.state}">⏱ ${escapeHtml(info.text)}</span>`;
+    const approval = (ins.history || []).filter(h => h.action === 'approved').pop();
+    return approval && approval.late ? `<span class="deadline-badge dl-overdue">${escapeHtml(t('dl.late'))}</span>` : '';
+  }
+
+  function timelineHtml(ins) {
+    const events = ins.history || [];
+    if (!events.length) return '';
+    return `<div class="timeline"><b>${escapeHtml(t('tl.title'))}</b><ol>${events.map(h => `<li class="tl-${h.action}"><span class="tl-dot"></span><div><b>${escapeHtml(t('tl.' + h.action))}</b>${h.late ? ` <span class="deadline-badge dl-overdue">${escapeHtml(t('tl.late'))}</span>` : ''}<small>${escapeHtml(h.byName || '-')}${h.role ? ' · ' + escapeHtml(roleMeta(h.role).label) : ''} · ${formatDate(h.at)}</small>${h.note ? `<p>${escapeHtml(h.note)}</p>` : ''}${h.changes && h.changes.length ? `<p class="tl-changes">${escapeHtml(h.changes.join(' · '))}</p>` : ''}</div></li>`).join('')}</ol></div>`;
+  }
+
+  // Drafts and records sent back can be reopened by the person who made them.
+  function historyEditButton(ins, className = 'text-button') {
+    if (!state.user || ins.submittedBy !== state.user.id || !can('inspection.submit')) return '';
+    const stage = stageOf(ins);
+    if (stage === 'draft') return ` <button class="${className}" data-edit="${ins.id}">${t('hist.resume')}</button>`;
+    if (stage === 'rejected') return ` <button class="${className} danger-link" data-edit="${ins.id}">${t('hist.fix')}</button>`;
+    return '';
+  }
 
   function formatDate(value) {
     const date = new Date(value);
@@ -82,7 +176,7 @@
     button.disabled = true;
     if (label) button.textContent = label;
     try { await fn(); }
-    catch (err) { console.error(err); toast(t('common.error') + (err.message || t('common.unknownError'))); }
+    catch (err) { console.error(err); toast(t('common.error') + errorText(err)); }
     finally { button.disabled = false; if (label) button.textContent = original; }
   }
 
@@ -95,6 +189,8 @@
     if (state.currentInspection) renderInspection();
     const activeView = $('.view.active');
     if (activeView) $('#page-title').textContent = t(activeView.dataset.titleKey);
+    const extra = activeView && extraViews[activeView.id.replace('view-', '')];
+    if (extra && state.data) extra.render();
   }
 
   function toggleLanguage() {
@@ -126,6 +222,12 @@
       el.classList.toggle('cap-denied', !allowed);
       el.title = allowed ? '' : t('cap.denied');
     });
+    // data-cap-any hides a control entirely when the role has none of the listed
+    // capabilities — for whole menu entries a greyed-out item is only clutter, and UAT
+    // testers found the full menu overwhelming.
+    $$('[data-cap-any]').forEach(el => {
+      el.hidden = !el.dataset.capAny.split(',').some(c => can(c.trim()));
+    });
   }
 
   // Explains, in the UI, why this account is seeing a subset of the data.
@@ -137,8 +239,9 @@
     const summary = scope.unrestricted
       ? t('scope.all', { n: scope.totalVenueCount })
       : t('scope.limited', { n: scope.venueCount, total: scope.totalVenueCount, branch: scope.branch });
+    const readOnly = !(scope.capabilities || []).some(c => c !== 'feedback.submit');
     el.innerHTML = `<div><b>${escapeHtml(t('scope.title'))}</b><p>${escapeHtml(summary)}</p>` +
-      `<p class="scope-caps">${escapeHtml(t('scope.canDo'))} ${escapeHtml(caps)}</p></div>`;
+      `<p class="scope-caps">${readOnly ? escapeHtml(t('scope.readOnly')) : `${escapeHtml(t('scope.canDo'))} ${escapeHtml(caps)}`}</p></div>`;
   }
 
   // --- Auth --------------------------------------------------------------------------
@@ -273,6 +376,7 @@
     if (name === 'standards') renderStandards();
     if (name === 'testing') renderTesting();
     if (name === 'feedback') renderFeedback();
+    if (extraViews[name]) extraViews[name].render();
     $('.sidebar').classList.remove('open');
   }
 
@@ -430,27 +534,51 @@
     renderAlerts(); renderAlertHistory(); renderSensors(); renderEquipment();
     renderStandards(); renderTesting();
     renderFeedback();
+    Object.values(extraViews).forEach(v => v.refresh && v.refresh());
     renderScopeBanner(); applyCapabilities();
   }
 
   // --- Role-based dashboard emphasis — visual focus only, every page stays reachable.
+  // Home-page task guide: three numbered steps for this role plus live counts, so a new
+  // user can see what they are expected to do without first learning the menu.
   function renderRoleFocus() {
     const el = $('#role-focus-banner');
     if (!el || !state.user) return;
-    const role = state.user.role;
-    const escalated = (state.data.aiAlerts || []).filter(a => a.status === 'escalated').length;
-    const openActions = actionRows().filter(a => a.item.actionStatus !== 'closed').length;
-    const shortfall = (state.data.equipmentCompliance || []).filter(c => c.shortfall > 0).length;
-    let focus;
-    if (role === 'supervisor') focus = { title: t('dash.focus.supervisor'), desc: t('dash.focus.supervisorDesc', { escalated, actions: openActions }), cta: 'alerts', ctaLabel: t('dash.focus.supervisorCta') };
-    else if (role === 'manager' || role === 'admin') focus = { title: t('dash.focus.manager'), desc: t('dash.focus.managerDesc', { n: shortfall }), cta: 'equipment', ctaLabel: t('dash.focus.managerCta') };
-    else focus = { title: t('dash.focus.inspector'), desc: t('dash.focus.inspectorDesc'), cta: 'venues', ctaLabel: t('dash.focus.inspectorCta') };
-    el.innerHTML = `<div><b>${escapeHtml(focus.title)}</b><p>${escapeHtml(focus.desc)}</p></div><button class="text-button" type="button">${escapeHtml(focus.ctaLabel)}</button>`;
-    el.querySelector('button').onclick = () => showView(focus.cta);
+    const role = ROLE_KEYS.includes(state.user.role) ? state.user.role : 'user';
+    const rows = state.data.inspections || [];
+    const mine = rows.filter(i => i.submittedBy === state.user.id);
+    const waiting = list => list.filter(i => ['pending_review', 'pending_approval'].includes(stageOf(i)));
+    const withDeadline = (list, states) => list.filter(i => states.includes((deadlineInfo(i) || {}).state)).length;
+    const summary = state.data.adminSummary || {};
+    let stats;
+    let cta = 'approvals';
+    let ctaKey = 'guide.cta.' + role;
+    if (role === 'user') {
+      const rejected = mine.filter(i => stageOf(i) === 'rejected').length;
+      stats = t('guide.stat.user', { pending: waiting(mine).length, rejected });
+      if (rejected) ctaKey = 'guide.cta.userRejected'; else cta = 'venues';
+    } else if (role === 'inspector') {
+      const queue = rows.filter(i => stageOf(i) === 'pending_review');
+      stats = t('guide.stat.inspector', { queue: queue.length, urgent: withDeadline(queue, ['overdue', 'due_soon']) });
+    } else if (role === 'supervisor') {
+      const queue = rows.filter(i => stageOf(i) === 'pending_approval');
+      stats = t('guide.stat.supervisor', { queue: queue.length, overdue: withDeadline(queue, ['overdue']) });
+    } else if (role === 'manager') {
+      const pending = waiting(rows);
+      stats = t('guide.stat.manager', { approved: rows.filter(i => stageOf(i) === 'approved').length, pending: pending.length, overdue: withDeadline(pending, ['overdue']) });
+    } else {
+      stats = t('guide.stat.admin', { users: summary.users || 0, suspended: summary.suspended || 0, suspicious: summary.suspicious || 0 });
+      cta = 'admin';
+    }
+    const meta = roleMeta(role);
+    const steps = [1, 2, 3].map(n => `<li><span>${n}</span>${escapeHtml(t(`guide.${role}.${n}`))}</li>`).join('');
+    el.innerHTML = `<div class="role-guide-head"><div><span class="eyebrow">${escapeHtml(meta.label)} · ${escapeHtml(meta.th)}</span><b>${escapeHtml(t('guide.title'))}</b><p>${escapeHtml(stats)}</p></div><button class="btn btn-primary" type="button">${escapeHtml(t(ctaKey))}</button></div><ol class="role-guide-steps">${steps}</ol>`;
+    el.querySelector('button').onclick = () => showView(cta);
   }
 
   function renderDashboard() {
-    const stats = Core.dashboardStats(state.data.inspections);
+    // Drafts and records sent back are not results yet, so they stay out of the figures.
+    const stats = Core.dashboardStats(state.data.inspections.filter(isActive));
     const open = actionRows().filter(a => a.item.actionStatus !== 'closed').length;
     $('#nav-action-count').textContent = open;
     const metrics = [
@@ -462,7 +590,7 @@
     $('#metric-grid').innerHTML = metrics.map(m => `<article class="metric-card"><span class="metric-icon">${m.icon}</span><div><small>${escapeHtml(m.label)}</small><strong>${m.value}</strong><small>${escapeHtml(m.unit)}</small></div><em>${escapeHtml(m.note)}</em></article>`).join('');
 
     const latestByVenue = state.data.venues.map(v => {
-      const rows = state.data.inspections.filter(i => i.venueId === v.id && i.status === 'submitted').sort((a,b) => b.date.localeCompare(a.date));
+      const rows = state.data.inspections.filter(i => i.venueId === v.id && isActive(i)).sort((a,b) => b.date.localeCompare(a.date));
       return { name: v.name, score: rows[0]?.score || 0 };
     }).filter(v => v.score > 0);
     $('#venue-bars').innerHTML = latestByVenue.length
@@ -474,7 +602,7 @@
     const total = actions.length;
     const closedPct = total ? Math.round(closed / total * 100) : 0;
     $('#action-donut').innerHTML = `<div class="donut" style="background:conic-gradient(var(--teal) 0 ${closedPct}%, #f0a51b ${closedPct}% 100%)"><div><strong>${total-closed}</strong><small>${t('dash.openItems')}</small></div></div><div class="donut-legend"><span><i style="background:var(--teal)"></i>${t('dash.closedCount')} ${closed}</span><span><i style="background:var(--yellow)"></i>${t('dash.trackingCount')} ${total-closed}</span></div>`;
-    $('#recent-table').innerHTML = state.data.inspections.slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,5).map(i => `<tr><td>${formatDate(i.date)}</td><td><b>${escapeHtml(i.venueName)}</b> <span class="freq-tag">${frequencyText(i.frequency)}</span></td><td>${escapeHtml(i.inspector)}</td><td><span class="score-badge ${scoreClass(i.score)}">${i.score}</span></td><td><span class="status-badge ${i.status}">${statusText(i.status)}</span></td><td><button class="text-button" data-detail="${i.id}">${t('hist.view')}</button></td></tr>`).join('');
+    $('#recent-table').innerHTML = state.data.inspections.slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,5).map(i => `<tr><td>${formatDate(i.date)}</td><td><b>${escapeHtml(i.venueName)}</b> <span class="freq-tag">${frequencyText(i.frequency)}</span></td><td>${escapeHtml(i.inspector)}</td><td><span class="score-badge ${scoreClass(i.score)}">${i.score}</span></td><td>${stageBadgeHtml(i)}</td><td><button class="text-button" data-detail="${i.id}">${t('hist.view')}</button></td></tr>`).join('');
     renderRoleFocus();
     renderAIStatusPanel();
     renderEquipmentStatusPanel();
@@ -527,15 +655,34 @@
     const venue = state.data.venues.find(v => v.id === venueId);
     const templateItems = state.data.checklistItems?.[frequency];
     if (!venue || !templateItems) return;
-    expandedFields.clear();
-    collapsedFields.clear();
-    state.currentInspection = {
-      id: `INS-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+    openInspectionEditor({
+      id: `INS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
       venueId: venue.id, venueName: venue.name, venueLocation: venue.location, venueLocationEn: venue.locationEn,
       frequency, inspector: state.user.name, role: roleMeta(state.user.role).label,
       date: new Date().toISOString(), status: 'draft', score: 0, overallNote: '',
       items: templateItems.map(c => ({ ...c, result: '', note: '', media: [], actionStatus: '' }))
-    };
+    });
+  }
+
+  // Continues a draft, or reopens a record a reviewer sent back, with its answers kept.
+  function editInspection(id) {
+    const ins = state.data.inspections.find(i => i.id === id);
+    if (!ins) return;
+    const venue = state.data.venues.find(v => v.id === ins.venueId) || {};
+    const templates = state.data.checklistItems?.[ins.frequency] || [];
+    openInspectionEditor({
+      ...ins, venueLocation: venue.location || ins.venueLocation, venueLocationEn: venue.locationEn,
+      // Template text is re-attached so descriptions and the how-to guide show again.
+      items: ins.items.map(item => ({ ...(templates.find(tpl => tpl.id === item.id) || {}), ...item, media: Array.isArray(item.media) ? item.media : [] }))
+    });
+  }
+
+  function openInspectionEditor(inspection) {
+    expandedFields.clear();
+    collapsedFields.clear();
+    state.currentInspection = inspection;
+    $('#validation-banner').hidden = true;
+    if ($('#detail-dialog').open) $('#detail-dialog').close();
     renderInspection();
     showView('inspection');
   }
@@ -670,8 +817,11 @@
         <div class="check-item-head">
           <span class="check-number">${String(index+1).padStart(2,'0')}</span>
           <div class="check-copy">
-            <h3>${escapeHtml(itemTitle(item))}</h3>
-            <p>${escapeHtml(itemDesc(item))}</p>
+            <div class="check-title-row">
+              <div class="check-illustration" aria-hidden="true">${checkIllustration(item.id)}</div>
+              <div><h3>${escapeHtml(itemTitle(item))}</h3><p>${escapeHtml(itemDesc(item))}</p></div>
+            </div>
+            ${howToHtml(item)}
             <div class="result-options">
               <input id="${item.id}-pass" type="radio" name="${item.id}" value="pass" ${item.result==='pass'?'checked':''}><label class="pass" for="${item.id}-pass">${t('insp.optPass')}</label>
               <input id="${item.id}-fail" type="radio" name="${item.id}" value="fail" ${item.result==='fail'?'checked':''}><label class="fail" for="${item.id}-fail">${t('insp.optFail')}</label>
@@ -682,6 +832,13 @@
         </div>
       </article>`).join('');
     $('#overall-note').value = ins.overallNote || '';
+    // A record that was sent back opens with the reviewer's reason on top.
+    const rejection = ins.reviewStatus === 'rejected' ? (ins.history || []).filter(h => h.action === 'rejected').pop() : null;
+    $('#rejection-banner').hidden = !rejection;
+    if (rejection) {
+      $('#rejection-banner').innerHTML = `<b>${escapeHtml(t('insp.rejectedTitle'))}</b><p>${escapeHtml(rejection.note || '')}</p><small>${escapeHtml(t('insp.rejectedBy', { name: rejection.byName || '-', date: formatDate(rejection.at) }))}</small>`;
+    }
+    $('#next-step-hint').textContent = t(state.user.role === 'user' ? 'insp.nextStep.user' : 'insp.nextStep.other');
 
     // Event delegation on the container: the extra area re-renders as fields expand,
     // so per-element listeners would need constant rebinding (and could double up).
@@ -786,6 +943,12 @@
     $('#live-score strong').textContent = score;
     $('#live-score').style.background = `conic-gradient(var(--teal) 0 ${score}%, #e9eef1 ${score}% 100%)`;
     $('#count-pass').textContent = counts.pass; $('#count-fail').textContent = counts.fail; $('#count-na').textContent = counts.na; $('#count-missing').textContent = counts.missing;
+    const total = items.length;
+    const done = total - counts.missing;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    const label = done === total ? t('insp.progressDone') : t('insp.progress', { done, total });
+    $('#inspection-progress').innerHTML = `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><span>${escapeHtml(label)}</span>`;
+    $('#mobile-progress').textContent = t('insp.progress', { done, total });
   }
 
   async function submitInspection() {
@@ -807,19 +970,44 @@
     ins.status = 'submitted';
     ins.items.forEach(item => { if (item.result === 'fail') item.actionStatus = 'open'; });
     await withLoading($('#submit-inspection'), t('insp.submitting'), async () => {
-      await Api.saveInspection(ins);
+      try {
+        await Api.saveInspection(ins);
+      } catch (err) {
+        ins.status = 'draft';   // still editable if the server refused it
+        throw err;
+      }
       await refreshData();
       const saved = state.data.inspections.find(i => i.id === ins.id) || ins;
+      state.currentInspection = null;
       renderResult(saved);
       showView('result');
-      renderDashboard(); renderHistory(); renderActions();
+      renderAll();
       toast(t('insp.saved'));
     });
   }
 
+  async function saveDraft() {
+    const ins = state.currentInspection;
+    if (!ins) return;
+    ins.overallNote = $('#overall-note').value.trim();
+    ins.status = 'draft';
+    await withLoading($('#save-draft'), null, async () => {
+      await Api.saveInspection(ins);
+      await refreshData();
+      renderAll();
+      toast(t('insp.draftSaved'));
+    });
+  }
+
+  function resultNextStepHtml(ins) {
+    const stage = stageOf(ins);
+    if (stage !== 'pending_review' && stage !== 'pending_approval') return '';
+    return `<div class="next-step-panel"><div><b>${escapeHtml(t('result.nextTitle'))}</b><p>${escapeHtml(t('result.next.' + stage, { deadline: formatDate(ins.deadline) }))}</p></div>${deadlineBadgeHtml(ins)}</div>`;
+  }
+
   function renderResult(ins) {
     const failed = Core.failedItems(ins.items);
-    $('#result-content').innerHTML = `<section class="result-hero"><div><span class="eyebrow" style="color:#74eadc">${t('result.eyebrow')} · ${frequencyText(ins.frequency).toUpperCase()}</span><h1>${failed.length ? t('result.withIssues') : t('result.allPass')}</h1><p>${escapeHtml(ins.venueName)} · ${formatDate(ins.date)}</p></div><div class="result-score"><strong>${ins.score}</strong><small>${t('result.score')}</small></div></section><div class="result-grid"><article class="panel"><div class="panel-heading"><div><h3>${t('result.title')}</h3><p>${t('result.subtitle')}</p></div></div><div class="metric-grid" style="grid-template-columns:repeat(3,1fr);margin:0"><div class="metric-card"><div><small>${t('insp.pass')}</small><strong>${ins.items.filter(i=>i.result==='pass').length}</strong></div></div><div class="metric-card"><div><small>${t('insp.fail')}</small><strong>${failed.length}</strong></div></div><div class="metric-card"><div><small>${t('insp.na')}</small><strong>${ins.items.filter(i=>i.result==='na').length}</strong></div></div></div><div class="result-actions"><button class="btn btn-primary" data-report="${ins.id}">${t('result.openReport')}</button><button class="btn btn-secondary" data-go="dashboard">${t('result.backDash')}</button></div></article><article class="panel"><div class="panel-heading"><div><h3>${t('result.toFix')}</h3><p>${t('result.toFixSub')}</p></div></div><div class="result-list">${failed.length ? failed.map(i=>`<div class="result-item"><b>${escapeHtml(itemTitle(i))}</b><p>${escapeHtml(i.note || t('result.defaultNote'))}</p></div>`).join('') : `<div class="empty-state"><b>${t('result.noFail')}</b>${t('result.noFailSub')}</div>`}</div></article></div>`;
+    $('#result-content').innerHTML = `<section class="result-hero"><div><span class="eyebrow" style="color:#74eadc">${t('result.eyebrow')} · ${frequencyText(ins.frequency).toUpperCase()}</span><h1>${failed.length ? t('result.withIssues') : t('result.allPass')}</h1><p>${escapeHtml(ins.venueName)} · ${formatDate(ins.date)}</p></div><div class="result-score"><strong>${ins.score}</strong><small>${t('result.score')}</small></div></section>${resultNextStepHtml(ins)}<div class="result-grid"><article class="panel"><div class="panel-heading"><div><h3>${t('result.title')}</h3><p>${t('result.subtitle')}</p></div></div><div class="metric-grid" style="grid-template-columns:repeat(3,1fr);margin:0"><div class="metric-card"><div><small>${t('insp.pass')}</small><strong>${ins.items.filter(i=>i.result==='pass').length}</strong></div></div><div class="metric-card"><div><small>${t('insp.fail')}</small><strong>${failed.length}</strong></div></div><div class="metric-card"><div><small>${t('insp.na')}</small><strong>${ins.items.filter(i=>i.result==='na').length}</strong></div></div></div><div class="result-actions"><button class="btn btn-primary" data-report="${ins.id}">${t('result.openReport')}</button><button class="btn btn-secondary" data-go="dashboard">${t('result.backDash')}</button></div></article><article class="panel"><div class="panel-heading"><div><h3>${t('result.toFix')}</h3><p>${t('result.toFixSub')}</p></div></div><div class="result-list">${failed.length ? failed.map(i=>`<div class="result-item"><b>${escapeHtml(itemTitle(i))}</b><p>${escapeHtml(i.note || t('result.defaultNote'))}</p></div>`).join('') : `<div class="empty-state"><b>${t('result.noFail')}</b>${t('result.noFailSub')}</div>`}</div></article></div>`;
     bindDynamicButtons();
   }
 
@@ -827,12 +1015,12 @@
     const term = ($('#history-search')?.value || '').trim().toLowerCase();
     const status = $('#history-status')?.value || 'all';
     const rows = state.data.inspections.filter(i => (status === 'all' || i.status === status) && `${i.id} ${i.venueName} ${i.inspector}`.toLowerCase().includes(term)).sort((a,b)=>b.date.localeCompare(a.date));
-    $('#history-table').innerHTML = rows.map(i => `<tr><td><b>${i.id}</b></td><td>${formatDate(i.date)}</td><td>${escapeHtml(i.venueName)}</td><td><span class="freq-tag">${frequencyText(i.frequency)}</span></td><td>${escapeHtml(i.inspector)}</td><td><span class="score-badge ${scoreClass(i.score)}">${i.score}</span></td><td>${Core.failedItems(i.items).length}</td><td><span class="status-badge ${i.status}">${statusText(i.status)}</span></td><td><button class="text-button" data-detail="${i.id}">${t('hist.view')}</button> <button class="text-button" data-report="${i.id}">${t('hist.report')}</button></td></tr>`).join('') || `<tr><td colspan="9"><div class="empty-state"><b>${t('hist.notFound')}</b>${t('hist.notFoundSub')}</div></td></tr>`;
+    $('#history-table').innerHTML = rows.map(i => `<tr><td><b>${i.id}</b></td><td>${formatDate(i.date)}</td><td>${escapeHtml(i.venueName)}</td><td><span class="freq-tag">${frequencyText(i.frequency)}</span></td><td>${escapeHtml(i.inspector)}</td><td><span class="score-badge ${scoreClass(i.score)}">${i.score}</span></td><td>${Core.failedItems(i.items).length}</td><td>${stageBadgeHtml(i)}${deadlineInfo(i) ? '<br>' + deadlineBadgeHtml(i) : ''}</td><td class="row-actions"><button class="text-button" data-detail="${i.id}">${t('hist.view')}</button> <button class="text-button" data-report="${i.id}">${t('hist.report')}</button>${historyEditButton(i)}</td></tr>`).join('') || `<tr><td colspan="9"><div class="empty-state"><b>${t('hist.notFound')}</b>${t('hist.notFoundSub')}</div></td></tr>`;
     bindDynamicButtons();
   }
 
   function actionRows() {
-    return state.data.inspections.flatMap(inspection => inspection.items.filter(item => item.result === 'fail').map(item => ({ inspection, item })));
+    return state.data.inspections.filter(isActive).flatMap(inspection => inspection.items.filter(item => item.result === 'fail').map(item => ({ inspection, item })));
   }
 
   function renderActions() {
@@ -1104,7 +1292,7 @@
 
   function openDetail(id) {
     const ins = state.data.inspections.find(i => i.id === id); if (!ins) return;
-    $('#dialog-content').innerHTML = `<span class="eyebrow">${ins.id}</span><h2>${escapeHtml(ins.venueName)}</h2><p>${formatDate(ins.date)} · ${frequencyText(ins.frequency)} · ${t('insp.inspector')} ${escapeHtml(ins.inspector)} · ${t('result.score')} <b>${ins.score}</b></p><div class="dialog-checks">${ins.items.map(i=>`<div class="dialog-check"><div class="dialog-check-row"><span>${escapeHtml(itemTitle(i))}</span><span class="status-badge ${i.result==='fail'?'open':i.result==='pass'?'closed':'draft'}">${i.result==='pass'?t('insp.pass'):i.result==='fail'?t('insp.fail'):t('insp.na')}</span></div>${i.note ? `<p class="dialog-check-note">${escapeHtml(i.note)}</p>` : ''}${mediaStripHtml(i)}</div>`).join('')}</div><div class="result-actions"><button class="btn btn-primary" data-report="${ins.id}">${t('result.openReport')}</button></div>`;
+    $('#dialog-content').innerHTML = `<span class="eyebrow">${ins.id}</span><h2>${escapeHtml(ins.venueName)}</h2><p>${formatDate(ins.date)} · ${frequencyText(ins.frequency)} · ${t('insp.inspector')} ${escapeHtml(ins.inspector)} · ${t('result.score')} <b>${ins.score}</b></p><div class="detail-stage">${stageBadgeHtml(ins)} ${deadlineBadgeHtml(ins)}</div>${timelineHtml(ins)}<div class="dialog-checks">${ins.items.map(i=>`<div class="dialog-check"><div class="dialog-check-row"><span>${escapeHtml(itemTitle(i))}</span><span class="status-badge ${i.result==='fail'?'open':i.result==='pass'?'closed':'draft'}">${i.result==='pass'?t('insp.pass'):i.result==='fail'?t('insp.fail'):t('insp.na')}</span></div>${i.note ? `<p class="dialog-check-note">${escapeHtml(i.note)}</p>` : ''}${mediaStripHtml(i)}</div>`).join('')}</div><div class="result-actions"><button class="btn btn-primary" data-report="${ins.id}">${t('result.openReport')}</button>${historyEditButton(ins, 'btn btn-secondary')}${can('data.correct') ? ` <button class="btn btn-secondary" data-correct="${ins.id}">${t('detail.correct')}</button>` : ''}</div>`;
     $('#detail-dialog').showModal(); bindDynamicButtons();
   }
 
@@ -1128,6 +1316,11 @@
     $$('[data-start]').forEach(btn => btn.onclick = () => startInspection(btn.dataset.start, btn.dataset.freq));
     $$('[data-detail]').forEach(btn => btn.onclick = () => openDetail(btn.dataset.detail));
     $$('[data-report]').forEach(btn => btn.onclick = () => openReport(btn.dataset.report));
+    $$('[data-edit]').forEach(btn => btn.onclick = () => editInspection(btn.dataset.edit));
+    $$('[data-correct]').forEach(btn => btn.onclick = () => {
+      if ($('#detail-dialog').open) $('#detail-dialog').close();
+      if (extraViews.admin && extraViews.admin.openCorrection) extraViews.admin.openCorrection(btn.dataset.correct);
+    });
   }
 
   async function resetData() {
@@ -1154,7 +1347,7 @@
       const password = $('#signup-password').value;
       const confirmPw = $('#signup-confirm').value;
       if (password !== confirmPw) { showFormError($('#signup-error'), t('auth.errPasswordMismatch')); return; }
-      submitSignup({ name: $('#signup-name').value.trim(), email: $('#signup-email').value.trim(), password, role: $('#signup-role').value, branch: $('#signup-branch').value });
+      submitSignup({ name: $('#signup-name').value.trim(), email: $('#signup-email').value.trim(), password, role: 'user', branch: $('#signup-branch').value });
     });
     const fbForm = $('#fb-form');
     if (fbForm) fbForm.addEventListener('submit', e => { e.preventDefault(); submitFeedback(); });
@@ -1183,6 +1376,9 @@
     $('#venue-search').addEventListener('input', renderVenues); $('#venue-type-filter').addEventListener('change', renderVenues);
     $('#history-search').addEventListener('input', renderHistory); $('#history-status').addEventListener('change', renderHistory);
     $('#submit-inspection').addEventListener('click', submitInspection);
+    $('#save-draft').addEventListener('click', saveDraft);
+    $('#mobile-submit').addEventListener('click', submitInspection);
+    Object.values(extraViews).forEach(v => v.bind && v.bind());
     $('#overall-note').addEventListener('input', e => { if (state.currentInspection) state.currentInspection.overallNote = e.target.value; });
     $('#print-report').addEventListener('click', () => window.print());
     $('#close-dialog').addEventListener('click', () => $('#detail-dialog').close());
@@ -1209,6 +1405,13 @@
       document.body.innerHTML = `<div style="max-width:520px;margin:80px auto;text-align:center;font-family:'Noto Sans Thai',sans-serif;color:#a83333"><h2>${t('auth.connectFailTitle')}</h2><p>${escapeHtml(err.message)}</p><p style="color:#657786">${t('auth.connectFailHint')}</p></div>`;
     }
   }
+
+  // Shared with approvals.js and admin.js, which add their screens through registerView.
+  window.SafeCheckApp = {
+    state, t, content, $, $$, escapeHtml, toast, formatDate, frequencyText, roleMeta, can, withLoading, errorText,
+    refreshData, renderAll, showView, openDetail, editInspection, stageOf, stageBadgeHtml, deadlineBadgeHtml, deadlineInfo,
+    itemTitle, registerView, bindDynamicButtons, showFormError, hideFormError, equipmentTypeText, ROLE_KEYS
+  };
 
   document.addEventListener('DOMContentLoaded', init);
 })();

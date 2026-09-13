@@ -44,8 +44,8 @@
           <p data-i18n="auth.loginSubtitle">ใช้บัญชีที่สมัครไว้ หรือบัญชีทดลองด้านล่าง</p>
           <div class="form-notice" id="login-notice" hidden></div>
           <div class="form-error" id="login-error" hidden></div>
-          <label for="login-email" data-i18n="auth.email">อีเมล</label>
-          <input id="login-email" type="email" required autocomplete="username">
+          <label for="login-email" data-i18n="auth.identifier">อีเมลหรือชื่อผู้ใช้</label>
+          <input id="login-email" type="text" required autocomplete="username" autocapitalize="none" spellcheck="false">
           <label for="login-password" data-i18n="auth.password">รหัสผ่าน</label>
           <input id="login-password" type="password" required autocomplete="current-password">
           <button class="btn btn-primary btn-block" type="submit"><span data-i18n="auth.loginBtn">เข้าสู่ระบบ</span> <span>→</span></button>
@@ -57,19 +57,8 @@
           <div class="form-error" id="signup-error" hidden></div>
           <label for="signup-name" data-i18n="auth.name">ชื่อ-นามสกุล</label>
           <input id="signup-name" required autocomplete="name" data-i18n-placeholder="auth.namePlaceholder" placeholder="เช่น สมชาย รักษ์ดี">
-          <div class="field-row">
-            <div>
-              <label for="signup-email" data-i18n="auth.email">อีเมล</label>
-              <input id="signup-email" type="email" required autocomplete="username" placeholder="you@example.com">
-            </div>
-            <div>
-              <label for="signup-role" data-i18n="auth.role">บทบาทผู้ใช้งาน</label>
-              <select id="signup-role" required>
-                <option value="inspector" data-i18n="role.inspector.option">Inspector / ผู้ตรวจ</option>
-                <option value="safety" data-i18n="role.safety.option">Safety Officer / เจ้าหน้าที่ความปลอดภัย</option>
-              </select>
-            </div>
-          </div>
+          <label for="signup-email" data-i18n="auth.email">อีเมล</label>
+          <input id="signup-email" type="email" required autocomplete="username" placeholder="you@example.com">
           <label for="signup-branch" data-i18n="auth.branch">สาขาที่สังกัด</label>
           <select id="signup-branch" required>
             <option value="BKK-CENTRAL" data-i18n="branch.BKK-CENTRAL">โซนกลาง (ปทุมวัน / สาทร / ราชเทวี)</option>
@@ -97,11 +86,11 @@
           <div class="demo-accounts-body">
             <p data-i18n-html="auth.demoIntro">คลิกบัญชีเพื่อกรอกให้อัตโนมัติ (รหัสผ่าน <code>Demo1234!</code> ทุกบัญชี)</p>
             <div class="demo-account-list">
-              <button type="button" data-demo-account="inspector@safecheck.demo"><b data-i18n="role.inspector.label">Inspector</b><small>inspector@safecheck.demo</small></button>
-              <button type="button" data-demo-account="safety@safecheck.demo"><b data-i18n="role.safety.label">Safety Officer</b><small>safety@safecheck.demo</small></button>
-              <button type="button" data-demo-account="supervisor@safecheck.demo"><b data-i18n="role.supervisor.label">Supervisor</b><small>supervisor@safecheck.demo</small></button>
-              <button type="button" data-demo-account="manager@safecheck.demo"><b data-i18n="role.manager.label">Manager</b><small>manager@safecheck.demo</small></button>
-              <button type="button" data-demo-account="admin@safecheck.demo"><b data-i18n="role.admin.label">Administrator</b><small>admin@safecheck.demo</small></button>
+              <button type="button" data-demo-account="staff@safecheck.demo"><b data-i18n="role.user.demo">User · พนักงานร้าน</b><small>staff@safecheck.demo</small></button>
+              <button type="button" data-demo-account="inspector@safecheck.demo"><b data-i18n="role.inspector.demo">Inspector · ผู้ตรวจสอบ</b><small>inspector@safecheck.demo</small></button>
+              <button type="button" data-demo-account="supervisor@safecheck.demo"><b data-i18n="role.supervisor.demo">Supervisor · หัวหน้างาน</b><small>supervisor@safecheck.demo</small></button>
+              <button type="button" data-demo-account="manager@safecheck.demo"><b data-i18n="role.manager.demo">Manager · ผู้จัดการ</b><small>manager@safecheck.demo</small></button>
+              <button type="button" data-demo-account="admin@safecheck.demo"><b data-i18n="role.admin.demo">Admin · ผู้ดูแลระบบ</b><small>admin@safecheck.demo</small></button>
             </div>
           </div>
         </details>
@@ -119,7 +108,8 @@
       <nav class="main-nav" data-i18n-aria="nav.aria">
         <small class="nav-section" data-i18n="nav.section.inspection">ตรวจสอบโดยเจ้าหน้าที่</small>
         <button data-view="dashboard" class="active"><span>▦</span><span data-i18n="nav.dashboard">ภาพรวม</span></button>
-        <button data-view="venues"><span>⌖</span><span data-i18n="nav.venues">เริ่มการตรวจ</span></button>
+        <button data-view="venues" data-cap-any="inspection.submit"><span>⌖</span><span data-i18n="nav.venues">เริ่มการตรวจ</span></button>
+        <button data-view="approvals"><span>✔</span><span data-i18n="nav.approvals">ตรวจสอบและอนุมัติ</span> <em id="nav-approval-count" hidden>0</em></button>
         <button data-view="history"><span>◷</span><span data-i18n="nav.history">ประวัติการตรวจ</span></button>
         <button data-view="actions"><span>!</span><span data-i18n="nav.actions">ติดตามการแก้ไข</span> <em id="nav-action-count">0</em></button>
         <small class="nav-section" data-i18n="nav.section.ai">ตรวจจับด้วย AI &amp; CCTV</small>
@@ -127,6 +117,8 @@
         <button data-view="alerts"><span>⚠</span><span data-i18n="nav.alerts">การแจ้งเตือน Safety</span> <em id="nav-alert-count">0</em></button>
         <button data-view="sensors"><span>◈</span><span data-i18n="nav.sensors">เซ็นเซอร์ &amp; อุปกรณ์</span></button>
         <button data-view="equipment"><span>▣</span><span data-i18n="nav.equipment">ทะเบียนอุปกรณ์ &amp; อายุการใช้งาน</span></button>
+        <small class="nav-section" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,system.backup" data-i18n="nav.section.admin">ผู้ดูแลระบบ</small>
+        <button data-view="admin" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,system.backup"><span>⚙</span><span data-i18n="nav.admin">จัดการระบบ</span> <em id="nav-admin-count" hidden>0</em></button>
         <small class="nav-section" data-i18n="nav.section.docs">เอกสารระบบ</small>
         <button data-view="standards"><span>§</span><span data-i18n="nav.standards">มาตรฐานความปลอดภัย</span></button>
         <button data-view="testing"><span>✓</span><span data-i18n="nav.testing">การทดสอบระบบ</span></button>
@@ -144,6 +136,13 @@
         <div><small id="breadcrumb" data-i18n="shell.breadcrumb">ระบบตรวจสอบความปลอดภัย</small><h2 id="page-title">ภาพรวม</h2></div>
         <div class="topbar-actions">
           <button type="button" class="lang-toggle" data-lang-toggle data-i18n="lang.switch" data-i18n-aria="lang.switchAria">EN</button>
+          <div class="notif-wrap">
+            <button id="notif-button" class="icon-button notif-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="notif-panel" data-i18n-aria="notif.open" aria-label="การแจ้งเตือน"><span aria-hidden="true">🔔</span><em id="notif-count" hidden>0</em></button>
+            <div id="notif-panel" class="notif-panel" hidden>
+              <div class="notif-head"><b data-i18n="notif.title">การแจ้งเตือน</b><button type="button" class="text-button" id="notif-read-all" data-i18n="notif.readAll">อ่านทั้งหมดแล้ว</button></div>
+              <div id="notif-list" class="notif-list"></div>
+            </div>
+          </div>
           <div class="user-menu-wrap">
             <button id="user-menu" class="user-chip" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-dropdown">
               <span id="user-initial">ณ</span>
@@ -171,7 +170,7 @@
         <section id="view-dashboard" class="view active" data-title-key="view.dashboard">
           <div class="welcome-banner">
             <div><span class="eyebrow" data-i18n="dash.eyebrow">SAFETY OVERVIEW</span><h1 id="welcome-title">สวัสดี</h1><p data-i18n="dash.subtitle">ติดตามสถานะการตรวจและรายการที่ต้องแก้ไขจากจุดเดียว</p></div>
-            <button class="btn btn-light" data-go="venues" data-i18n="dash.newInspection">+ เริ่มการตรวจใหม่</button>
+            <button class="btn btn-light" data-go="venues" data-cap-any="inspection.submit" data-i18n="dash.newInspection">+ เริ่มการตรวจใหม่</button>
           </div>
           <div id="role-focus-banner" class="role-focus-banner"></div>
           <div id="scope-banner" class="scope-banner"></div>
@@ -210,8 +209,10 @@
 
         <section id="view-inspection" class="view" data-title-key="view.inspection">
           <div id="inspection-header" class="inspection-header"></div>
+          <div id="inspection-progress" class="inspection-progress"></div>
           <div class="inspection-layout">
             <div>
+              <div id="rejection-banner" class="rejection-banner" hidden></div>
               <div id="validation-banner" class="validation-banner" hidden></div>
               <div id="checklist-container" class="checklist-container"></div>
             </div>
@@ -222,9 +223,15 @@
               <dl><div><dt data-i18n="insp.pass">ผ่าน</dt><dd id="count-pass">0</dd></div><div><dt data-i18n="insp.fail">ไม่ผ่าน</dt><dd id="count-fail">0</dd></div><div><dt data-i18n="insp.na">ไม่เกี่ยวข้อง</dt><dd id="count-na">0</dd></div><div><dt data-i18n="insp.missing">ยังไม่ตอบ</dt><dd id="count-missing">0</dd></div></dl>
               <label for="overall-note" data-i18n="insp.overallNote">หมายเหตุภาพรวม</label>
               <textarea id="overall-note" rows="3" data-i18n-placeholder="insp.overallNotePlaceholder" placeholder="ระบุข้อสังเกตเพิ่มเติม..."></textarea>
+              <p id="next-step-hint" class="next-step-hint"></p>
               <button id="submit-inspection" class="btn btn-primary btn-block" data-i18n="insp.submit">ส่งผลการตรวจ</button>
-              <button class="btn btn-secondary btn-block" data-go="venues" data-i18n="insp.cancel">ยกเลิก</button>
+              <button id="save-draft" class="btn btn-secondary btn-block" type="button" data-i18n="insp.saveDraft">บันทึกร่างไว้ทำต่อ</button>
+              <button class="btn btn-ghost btn-block" data-go="venues" data-i18n="insp.cancel">ยกเลิก</button>
             </aside>
+          </div>
+          <div class="mobile-submit-bar" id="mobile-submit-bar">
+            <span id="mobile-progress"></span>
+            <button class="btn btn-primary" type="button" id="mobile-submit" data-i18n="insp.submit">ส่งผลการตรวจ</button>
           </div>
         </section>
 
@@ -232,8 +239,66 @@
           <div id="result-content"></div>
         </section>
 
+        <section id="view-approvals" class="view" data-title-key="view.approvals">
+          <div class="section-intro"><div><span class="eyebrow" data-i18n="appr.eyebrow">APPROVAL WORKFLOW</span><h1 id="appr-title">ตรวจสอบและอนุมัติ</h1><p id="appr-subtitle"></p></div><span id="appr-pill" class="large-pill"></span></div>
+
+          <article class="panel">
+            <div class="panel-heading"><div><h3 data-i18n="appr.flowTitle">ขั้นตอนการอนุมัติ</h3><p data-i18n="appr.flowSub">ทุกรายการต้องผ่านครบทุกขั้นก่อนถือว่าเสร็จสิ้น</p></div></div>
+            <div id="appr-flow" class="workflow-steps"></div>
+            <div class="deadline-rules">
+              <div class="deadline-rule"><span class="freq-tag" data-i18n="freq.daily">รายวัน</span><b data-i18n="appr.ruleDaily">อนุมัติก่อน 17:00 น.</b><small data-i18n="appr.ruleDailySub">ก่อนร้านเปิด ถ้าส่งหลัง 17:00 น. นับเป็นรอบเปิดร้านวันถัดไป</small></div>
+              <div class="deadline-rule"><span class="freq-tag" data-i18n="freq.monthly">รายเดือน</span><b data-i18n="appr.ruleMonthly">ก่อนสิ้นเดือน 1 สัปดาห์</b><small data-i18n="appr.ruleMonthlySub">เช่น เดือนกันยายน ต้องอนุมัติภายในวันที่ 23</small></div>
+              <div class="deadline-rule"><span class="freq-tag" data-i18n="freq.yearly">รายปี</span><b data-i18n="appr.ruleYearly">ภายในเดือนพฤศจิกายน</b><small data-i18n="appr.ruleYearlySub">ต้องอนุมัติภายในวันที่ 30 พฤศจิกายน ก่อนสิ้นปี</small></div>
+            </div>
+          </article>
+
+          <div class="tab-row appr-tabs" role="tablist">
+            <button type="button" class="tab-btn active" data-appr-tab="queue" role="tab" aria-selected="true" data-i18n="appr.tabQueue">รอฉันดำเนินการ</button>
+            <button type="button" class="tab-btn" data-appr-tab="all" role="tab" aria-selected="false" data-i18n="appr.tabAll">ทั้งหมด</button>
+          </div>
+          <div id="appr-filter-row" class="filter-row" hidden>
+            <input id="appr-search" type="search" data-i18n-placeholder="appr.searchPlaceholder" placeholder="ค้นหาสถานที่หรือผู้ส่ง...">
+            <select id="appr-status-filter">
+              <option value="all" data-i18n="hist.allStatus">ทุกสถานะ</option>
+              <option value="pending_review" data-i18n="stage.pending_review">รอ Inspector ตรวจสอบ</option>
+              <option value="pending_approval" data-i18n="stage.pending_approval">รอ Supervisor อนุมัติ</option>
+              <option value="approved" data-i18n="stage.approved">อนุมัติแล้ว</option>
+              <option value="rejected" data-i18n="stage.rejected">ถูกตีกลับให้แก้ไข</option>
+              <option value="draft" data-i18n="stage.draft">ฉบับร่าง</option>
+            </select>
+          </div>
+          <div id="appr-list" class="actions-list"></div>
+
+          <article class="panel notify-panel" data-cap-any="staff.notify">
+            <div class="panel-heading"><div><h3 data-i18n="notify.title">📣 แจ้งเตือนพนักงาน</h3><p data-i18n="notify.sub">ส่งข้อความถึงพนักงานทุกคนของสถานที่ที่เลือก ข้อความจะขึ้นที่กระดิ่งแจ้งเตือนของพนักงาน</p></div></div>
+            <form id="notify-form">
+              <div class="field-row">
+                <div><label for="notify-venue" data-i18n="notify.venue">สถานที่</label><select id="notify-venue"></select></div>
+                <div><label for="notify-template" data-i18n="notify.template">ข้อความสำเร็จรูป</label><select id="notify-template"></select></div>
+              </div>
+              <label for="notify-message" data-i18n="notify.message">ข้อความ</label>
+              <textarea id="notify-message" rows="3" maxlength="500" data-i18n-placeholder="notify.placeholder" placeholder="เช่น กรุณาย้ายลังสินค้าออกจากทางหนีไฟก่อนเปิดร้าน"></textarea>
+              <div class="form-error" id="notify-error" hidden></div>
+              <button class="btn btn-primary" type="submit" data-i18n="notify.send">ส่งการแจ้งเตือน</button>
+            </form>
+          </article>
+        </section>
+
+        <section id="view-admin" class="view" data-title-key="view.admin">
+          <div class="section-intro"><div><span class="eyebrow">ADMINISTRATION</span><h1 data-i18n="admin.title">จัดการระบบ</h1><p data-i18n="admin.subtitle">จัดการผู้ใช้ สิทธิ์การเข้าถึง ข้อมูล สถานที่และอุปกรณ์ ความปลอดภัย และการสำรองข้อมูล</p></div></div>
+          <div class="admin-tabs" role="tablist">
+            <button type="button" class="admin-tab" data-admin-tab="users" data-cap-any="user.manage"><span aria-hidden="true">👥</span><span data-i18n="admin.tab.users">ผู้ใช้งาน</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="permissions" data-cap-any="role.manage"><span aria-hidden="true">🔐</span><span data-i18n="admin.tab.permissions">สิทธิ์การเข้าถึง</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="data" data-cap-any="data.correct"><span aria-hidden="true">✎</span><span data-i18n="admin.tab.data">แก้ไขข้อมูล</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="venues" data-cap-any="venue.manage,equipment.manage"><span aria-hidden="true">🏢</span><span data-i18n="admin.tab.venues">สถานที่และอุปกรณ์</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="security" data-cap-any="security.view"><span aria-hidden="true">🛡</span><span data-i18n="admin.tab.security">ความปลอดภัย</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="backup" data-cap-any="system.backup"><span aria-hidden="true">💾</span><span data-i18n="admin.tab.backup">สำรองและกู้คืน</span></button>
+          </div>
+          <div id="admin-content"></div>
+        </section>
+
         <section id="view-history" class="view" data-title-key="view.history">
-          <div class="section-intro"><div><span class="eyebrow" data-i18n="hist.eyebrow">INSPECTION HISTORY</span><h1 data-i18n="hist.title">ประวัติการตรวจทั้งหมด</h1><p data-i18n="hist.subtitle">ค้นหา ดูรายละเอียด และเปิดรายงานสำหรับบันทึกที่ส่งแล้ว</p></div><button class="btn btn-primary" data-go="venues" data-i18n="hist.new">+ การตรวจใหม่</button></div>
+          <div class="section-intro"><div><span class="eyebrow" data-i18n="hist.eyebrow">INSPECTION HISTORY</span><h1 data-i18n="hist.title">ประวัติการตรวจทั้งหมด</h1><p data-i18n="hist.subtitle">ค้นหา ดูรายละเอียด และเปิดรายงานสำหรับบันทึกที่ส่งแล้ว</p></div><button class="btn btn-primary" data-go="venues" data-cap-any="inspection.submit" data-i18n="hist.new">+ การตรวจใหม่</button></div>
           <article class="panel"><div class="filter-row"><input id="history-search" type="search" data-i18n-placeholder="hist.searchPlaceholder" placeholder="ค้นหาสถานที่หรือผู้ตรวจ..."><select id="history-status"><option value="all" data-i18n="hist.allStatus">ทุกสถานะ</option><option value="submitted" data-i18n="hist.submitted">ส่งแล้ว</option><option value="draft" data-i18n="hist.draft">ฉบับร่าง</option></select></div><div class="table-wrap"><table><thead><tr><th data-i18n="hist.col.id">รหัส</th><th data-i18n="hist.col.date">วันที่</th><th data-i18n="hist.col.venue">สถานที่</th><th data-i18n="hist.col.freq">ความถี่</th><th data-i18n="hist.col.inspector">ผู้ตรวจ</th><th data-i18n="hist.col.score">คะแนน</th><th data-i18n="hist.col.failed">รายการไม่ผ่าน</th><th data-i18n="hist.col.status">สถานะ</th><th></th></tr></thead><tbody id="history-table"></tbody></table></div></article>
         </section>
 
@@ -397,7 +462,7 @@
                 <label for="equipment-check-select" data-i18n="equip.ocrSelect">เลือกอุปกรณ์</label>
                 <select id="equipment-check-select"></select>
               </div>
-              <button id="equipment-check-run" class="btn btn-demo" data-i18n="equip.ocrBtn">📷 จำลองอ่านวันหมดอายุจากภาพ</button>
+              <button id="equipment-check-run" class="btn btn-demo" data-cap="equipment.manage" data-i18n="equip.ocrBtn">📷 จำลองอ่านวันหมดอายุจากภาพ</button>
               <div id="equipment-check-result" class="sensor-check-result"></div>
             </div>
           </article>
@@ -504,8 +569,11 @@
   <dialog id="detail-dialog" class="detail-dialog"><button id="close-dialog" class="dialog-close" data-i18n-aria="shell.close" aria-label="ปิด">×</button><div id="dialog-content"></div></dialog>
 
   <script src="core.js"></script>
+  <script src="workflow.js"></script>
   <script src="i18n.js"></script>
   <script src="api.js"></script>
   <script src="app.js"></script>
+  <script src="approvals.js"></script>
+  <script src="admin.js"></script>
 </body>
 </html>

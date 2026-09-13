@@ -23,7 +23,9 @@ const STATIC_FILES = {
   '/workflow.js': 'workflow.js',
   '/i18n.js': 'i18n.js',
   '/api.js': 'api.js',
-  '/app.js': 'app.js'
+  '/app.js': 'app.js',
+  '/approvals.js': 'approvals.js',
+  '/admin.js': 'admin.js'
 };
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 

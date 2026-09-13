@@ -1,6 +1,6 @@
 ================================================================================================
   SafeCheck — Test Result Report
-  Generated: 2026-09-13 12:09:44    Node: v24.18.1    Platform: win32
+  Generated: 2026-09-13 14:04:06    Node: v24.18.1    Platform: win32
 ================================================================================================
 
 Unit Testing  —  19/19 passed
@@ -31,51 +31,50 @@ Integration Testing  —  12/12 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
-  IT-01   Successful login issues an HttpOnly session cookie                  PASS    37 ms
+  IT-01   Successful login issues an HttpOnly session cookie                  PASS    36 ms
   IT-02   Bootstrap without a session is refused with 401                     PASS    12 ms
   IT-03   Bootstrap with a valid session returns data and scope               PASS    64 ms
-  IT-04   Logout invalidates the session server-side, not just the cookie     PASS    77 ms
-  IT-05   Wrong password is rejected and starts no session                    PASS    40 ms
+  IT-04   Logout invalidates the session server-side, not just the cookie     PASS    74 ms
+  IT-05   Wrong password is rejected and starts no session                    PASS    44 ms
   IT-06   Uploaded evidence is stored and returned byte-identical             PASS    65 ms
-  IT-07   A newly registered account can immediately log in                   PASS    98 ms
-  IT-08   Signup assigns the venues of the branch that was chosen             PASS    94 ms
-  IT-09   A tester can submit UAT feedback and it is persisted                PASS    88 ms
-  IT-10   An account can log in with its username as well as its email        PASS    35 ms
-  IT-11   Suspending an account ends its open session and blocks new logins   PASS    222 ms
-  IT-12   Failed and suspended logins are recorded in the security log        PASS    50 ms
+  IT-07   A newly registered account can immediately log in                   PASS    78 ms
+  IT-08   Signup assigns the venues of the branch that was chosen             PASS    107 ms
+  IT-09   A tester can submit UAT feedback and it is persisted                PASS    77 ms
+  IT-10   An account can log in with its username as well as its email        PASS    32 ms
+  IT-11   Suspending an account ends its open session and blocks new logins   PASS    226 ms
+  IT-12   Failed and suspended logins are recorded in the security log        PASS    49 ms
 
 System Testing  —  13/13 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
-  ST-01   A submitted inspection is scored and appears in history             PASS    62 ms
+  ST-01   A submitted inspection is scored and appears in history             PASS    77 ms
   ST-02   A failed item becomes a corrective action whose status can be upda  PASS    138 ms
   ST-03   An alert runs the full notified -> acknowledged -> closed lifecycl  PASS    154 ms
-  ST-04   Purchasing equipment clears the venue shortfall                     PASS    92 ms
-  ST-05   Reset restores demo data without deleting user accounts             PASS    387 ms
-  ST-06   Resetting demo data does not destroy collected UAT feedback         PASS    371 ms
-  ST-07   Staff submission: Inspector reviews, Supervisor approves, record b  PASS    230 ms
-  ST-08   A rejection needs a reason, reaches the submitter, and the record   PASS    185 ms
-  ST-09   An Inspector can send a notice to the staff of a venue              PASS    123 ms
-  ST-10   An administrator creates an account, changes its role, then delete  PASS    178 ms
-  ST-11   An administrator corrects a wrong result; the score is recomputed   PASS    115 ms
-  ST-12   An administrator manages venues and equipment; a venue with histor  PASS    138 ms
+  ST-04   Purchasing equipment clears the venue shortfall                     PASS    77 ms
+  ST-05   Reset restores demo data without deleting user accounts             PASS    386 ms
+  ST-06   Resetting demo data does not destroy collected UAT feedback         PASS    369 ms
+  ST-07   Staff submission: Inspector reviews, Supervisor approves, record b  PASS    231 ms
+  ST-08   A rejection needs a reason, reaches the submitter, and the record   PASS    184 ms
+  ST-09   An Inspector can send a notice to the staff of a venue              PASS    91 ms
+  ST-10   An administrator creates an account, changes its role, then delete  PASS    174 ms
+  ST-11   An administrator corrects a wrong result; the score is recomputed   PASS    121 ms
+  ST-12   An administrator manages venues and equipment; a venue with histor  PASS    139 ms
   ST-13   Backup and restore return data to the backed-up state, with a safe  PASS    140 ms
 
-Acceptance Testing  —  8/9 passed
+Acceptance Testing  —  9/9 passed
 ------------------------------------------------------------------------------------------------
   ID      Test Case                                                           Result  Time
 ------------------------------------------------------------------------------------------------
   AT-01   REQ-1 Safety standards are documented with codes and sources        PASS    0 ms
   AT-02   REQ-2 AI detection criteria are defined and measurable              PASS    0 ms
-  AT-03   REQ-3 Three alert levels exist and drive different handling         PASS    85 ms
+  AT-03   REQ-3 Three alert levels exist and drive different handling         PASS    82 ms
   AT-04   REQ-4 Sensor and equipment catalogue is documented                  PASS    0 ms
   AT-05   REQ-5 Test environments and pass criteria are documented            PASS    0 ms
-  AT-06   REQ-6 All required screens are present in the interface             FAIL    1 ms
-          -> missing views: expected [], got ["approvals","admin"]
+  AT-06   REQ-6 All required screens are present in the interface             PASS    0 ms
   AT-07   REQ-7 CCTV is documented as a sensor feeding the AI pipeline        PASS    0 ms
   AT-08   REQ-8 Approval deadlines follow the business rule (daily: before 1  PASS    65 ms
-  AT-09   REQ-9 The system has exactly five roles: Admin, Manager, Superviso  PASS    56 ms
+  AT-09   REQ-9 The system has exactly five roles: Admin, Manager, Superviso  PASS    70 ms
 
 Non-Functional Testing  —  21/21 passed
 ------------------------------------------------------------------------------------------------
@@ -83,26 +82,26 @@ Non-Functional Testing  —  21/21 passed
 ------------------------------------------------------------------------------------------------
   NFT-01  Bootstrap responds in under 500 ms                                  PASS    62 ms
   NFT-02  Passwords are stored hashed and salted, never in plain text         PASS    1 ms
-  NFT-03  The API never returns password hashes or salts                      PASS    60 ms
-  NFT-04  Repeated failed logins are throttled with HTTP 429                  PASS    95 ms
+  NFT-03  The API never returns password hashes or salts                      PASS    59 ms
+  NFT-04  Repeated failed logins are throttled with HTTP 429                  PASS    93 ms
   NFT-05  Public signup cannot grant an elevated role                         PASS    60 ms
   NFT-06  Out-of-scope venue data is never sent to the client                 PASS    62 ms
-  NFT-07  A write to an out-of-scope venue is refused with 403                PASS    77 ms
-  NFT-08  An action the role lacks is refused even when called directly       PASS    124 ms
-  NFT-09  Disallowed file types are rejected on upload                        PASS    61 ms
-  NFT-10  The per-item evidence cap is enforced by the server, not the UI     PASS    62 ms
-  NFT-11  A non-administrator cannot read other testers’ feedback             PASS    264 ms
-  NFT-12  An administrator can read the collected feedback                    PASS    78 ms
-  NFT-13  Feedback submission is rejected without a tester name               PASS    60 ms
-  NFT-14  Manager is read-only: every write is refused by the server          PASS    108 ms
-  NFT-15  Each approval step is limited to its own role                       PASS    215 ms
-  NFT-16  Every administration endpoint refuses non-administrators            PASS    709 ms
+  NFT-07  A write to an out-of-scope venue is refused with 403                PASS    76 ms
+  NFT-08  An action the role lacks is refused even when called directly       PASS    123 ms
+  NFT-09  Disallowed file types are rejected on upload                        PASS    62 ms
+  NFT-10  The per-item evidence cap is enforced by the server, not the UI     PASS    61 ms
+  NFT-11  A non-administrator cannot read other testers’ feedback             PASS    294 ms
+  NFT-12  An administrator can read the collected feedback                    PASS    77 ms
+  NFT-13  Feedback submission is rejected without a tester name               PASS    61 ms
+  NFT-14  Manager is read-only: every write is refused by the server          PASS    122 ms
+  NFT-15  Each approval step is limited to its own role                       PASS    217 ms
+  NFT-16  Every administration endpoint refuses non-administrators            PASS    722 ms
   NFT-17  Permission changes apply immediately; administrators cannot remove  PASS    262 ms
   NFT-18  Shared demo accounts and an administrator’s own account are protec  PASS    92 ms
   NFT-19  Backup files contain no user accounts, passwords or password hashe  PASS    77 ms
-  NFT-20  A record in review cannot be changed by its submitter or by anyone  PASS    125 ms
-  NFT-21  The security log masks the email and IP address of real people      PASS    74 ms
+  NFT-20  A record in review cannot be changed by its submitter or by anyone  PASS    124 ms
+  NFT-21  The security log masks the email and IP address of real people      PASS    77 ms
 
 ================================================================================================
-  SUMMARY:  73 passed, 1 failed, 74 total   (pass rate 99%)
+  SUMMARY:  74 passed, 0 failed, 74 total   (pass rate 100%)
 ================================================================================================

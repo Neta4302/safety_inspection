@@ -829,7 +829,7 @@ async function nonFunctionalTests() {
 // ==================================================================== runner
 function copyApp() {
   fs.mkdirSync(path.join(WORK_DIR, 'data'), { recursive: true });
-  for (const f of ['db.js', 'server.js', 'core.js', 'workflow.js', 'i18n.js', 'api.js', 'app.js', 'index.html', 'styles.css', 'package.json']) {
+  for (const f of ['db.js', 'server.js', 'core.js', 'workflow.js', 'i18n.js', 'api.js', 'app.js', 'approvals.js', 'admin.js', 'index.html', 'styles.css', 'package.json']) {
     fs.copyFileSync(path.join(APP_DIR, f), path.join(WORK_DIR, f));
   }
 }
