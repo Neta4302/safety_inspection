@@ -121,7 +121,7 @@
     const role = u.role || 'user';
     const lock = u.isDemo ? ' disabled' : '';
     const venueChecks = state.data.venues.map(v =>
-      `<label><input type="checkbox" name="venues" value="${v.id}"${(u.venues || []).includes(v.id) ? ' checked' : ''}${lock}> ${escapeHtml(v.name)} <small>${escapeHtml(v.branch)}</small></label>`).join('');
+      `<label><input type="checkbox" name="venues" value="${v.id}"${(u.venues || []).includes(v.id) ? ' checked' : ''}${lock}><span>${escapeHtml(v.name)}</span><small>${escapeHtml(v.branch)}</small></label>`).join('');
     return `<form class="admin-form" id="user-form" data-id="${u.id || ''}">
       <h4>${escapeHtml(editing ? t('admin.users.formEdit', { name: u.name }) : t('admin.users.formNew'))}</h4>
       ${u.isDemo ? `<p class="admin-note">⚠ ${h('admin.users.demoNote')}</p>` : ''}

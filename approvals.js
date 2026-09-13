@@ -128,6 +128,11 @@
   function render() {
     if (!state.data) return;
     const role = currentRole();
+    // Manager and Admin never have anything waiting on them, so an always-empty
+    // "waiting for me" tab would only confuse; they get the full list straight away.
+    const hasQueue = can('inspection.review') || can('inspection.approve') || can('inspection.submit');
+    if (!hasQueue) tab = 'all';
+    $('[data-appr-tab="queue"]').hidden = !hasQueue;
     $('#appr-title').textContent = t('appr.title.' + role);
     $('#appr-subtitle').textContent = t('appr.sub.' + role);
     const waiting = queue();

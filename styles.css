@@ -584,6 +584,9 @@ textarea { resize: vertical; }
 .venue-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin-top: 6px; }
 .venue-checks label { display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 600; font-size: 13.5px; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
 .venue-checks input { width: auto; }
+.venue-checks label { flex-wrap: wrap; row-gap: 0; align-items: flex-start; }
+.venue-checks label span { flex: 1; min-width: 0; line-height: 1.4; }
+.venue-checks small { flex-basis: 100%; padding-left: 24px; font-size: 11.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 .user-cell b { display: block; font-size: 14px; }
 .user-cell small { display: block; color: var(--muted); font-size: 12px; }
 .tag-demo { display: inline-block; font-size: 11px; font-weight: 800; color: #8a5a00; background: #fff3d9; border-radius: 99px; padding: 1px 8px; margin-left: 4px; }
@@ -688,6 +691,21 @@ table { font-size: 14px; } th { font-size: 12px; } td { padding: 13px 10px; }
   .mobile-submit-bar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.97); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(18,57,86,.08); }
   .mobile-submit-bar span { font-size: 14px; font-weight: 700; color: #4a5b66; }
   .mobile-submit-bar .btn { flex: 0 0 auto; }
+  /* Phone top bar: the breadcrumb collided with the menu button and long page titles
+     wrapped onto two lines, so keep a single truncated title. */
+  .topbar { gap: 8px; }
+  .topbar > div:nth-child(2) { flex: 1; min-width: 0; }
+  .topbar #breadcrumb { display: none; }
+  .topbar h2 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+  .topbar-actions { gap: 6px; }
+  .user-chip-chevron { display: none; }
+  /* Pass / fail / N/A side by side on one line each, with the item number dropped to
+     give them the width. */
+  .check-number { display: none; }
+  .result-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .result-options label { justify-content: center; padding: 10px 2px; font-size: 14.5px; white-space: nowrap; }
+  .inspection-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .inspection-id { text-align: left; }
 }
 
 @media (max-height: 820px) {
