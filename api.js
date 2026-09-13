@@ -49,7 +49,38 @@
       body: file
     }),
     deleteMedia: id => request(`/api/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    mediaUrl: id => `/api/media/${encodeURIComponent(id)}`
+    mediaUrl: id => `/api/media/${encodeURIComponent(id)}`,
+
+    // Approval workflow
+    reviewInspection: (id, decision, note) =>
+      request(`/api/inspections/${encodeURIComponent(id)}/review`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
+    approveInspection: (id, decision, note) =>
+      request(`/api/inspections/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
+    notifyStaff: payload => request('/api/notify', { method: 'POST', body: JSON.stringify(payload) }),
+    markNotificationsRead: ids => request('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids }) }),
+
+    // Administration — the server refuses all of these without the matching capability.
+    admin: {
+      listUsers: () => request('/api/admin/users'),
+      createUser: user => request('/api/admin/users', { method: 'POST', body: JSON.stringify(user) }),
+      updateUser: (id, patch) => request(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+      deleteUser: id => request(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      getPermissions: () => request('/api/admin/permissions'),
+      setPermissions: (role, capabilities) =>
+        request(`/api/admin/permissions/${encodeURIComponent(role)}`, { method: 'PUT', body: JSON.stringify({ capabilities }) }),
+      resetPermissions: () => request('/api/admin/permissions/reset', { method: 'POST' }),
+      correctInspection: (id, patch) =>
+        request(`/api/admin/inspections/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+      createVenue: venue => request('/api/admin/venues', { method: 'POST', body: JSON.stringify(venue) }),
+      updateVenue: (id, venue) => request(`/api/admin/venues/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(venue) }),
+      deleteVenue: id => request(`/api/admin/venues/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      deleteEquipment: id => request(`/api/equipment/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      security: () => request('/api/admin/security'),
+      listBackups: () => request('/api/admin/backups'),
+      createBackup: label => request('/api/admin/backups', { method: 'POST', body: JSON.stringify({ label }) }),
+      backupUrl: id => `/api/admin/backups/${encodeURIComponent(id)}`,
+      restore: payload => request('/api/admin/restore', { method: 'POST', body: JSON.stringify(payload) })
+    }
   };
 
   if (typeof module === 'object' && module.exports) module.exports = Api;

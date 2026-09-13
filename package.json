@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node tests/run-tests.js",
-    "test:whitebox": "node --test --experimental-test-coverage --test-coverage-include=core.js tests/whitebox.test.js",
+    "test:whitebox": "node --test --experimental-test-coverage --test-coverage-include=core.js --test-coverage-include=workflow.js tests/whitebox.test.js tests/whitebox-workflow.test.js",
     "test:blackbox": "node tests/run-tests.js"
   },
   "engines": {

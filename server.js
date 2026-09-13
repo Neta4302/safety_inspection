@@ -20,6 +20,7 @@ const STATIC_FILES = {
   '/index.html': 'index.html',
   '/styles.css': 'styles.css',
   '/core.js': 'core.js',
+  '/workflow.js': 'workflow.js',
   '/i18n.js': 'i18n.js',
   '/api.js': 'api.js',
   '/app.js': 'app.js'
@@ -202,21 +203,33 @@ async function handleApi(req, res, pathname, method) {
     }
     if (pathname === '/api/login' && method === 'POST') {
       const body = await readBody(req);
-      const key = attemptKey(req, body.email);
+      // The field keeps its old name for compatibility, but may hold a username.
+      const identifier = body.email || body.username || '';
+      const key = attemptKey(req, identifier);
+      const ip = clientIp(req);
       const lockedMs = loginLockRemainingMs(key);
       if (lockedMs > 0) {
         const minutes = Math.max(1, Math.ceil(lockedMs / 60000));
+        db.recordLoginEvent({ email: identifier, ip, success: false, reason: 'locked' });
         res.setHeader('Retry-After', String(Math.ceil(lockedMs / 1000)));
         return sendJson(res, 429, { code: 'err.tooManyAttempts', minutes, error: `พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณาลองใหม่ในอีก ${minutes} นาที` });
       }
       try {
-        const user = db.verifyLogin(body.email, body.password);
+        const user = db.verifyLogin(identifier, body.password);
         loginAttempts.delete(key);
+        db.recordLoginEvent({ email: user.email, userId: user.id, ip, success: true });
         const token = db.createSession(user.id);
         setSessionCookie(req, res, token);
         return sendJson(res, 200, { user });
       } catch (err) {
+        // A suspended account supplied the correct password, so this is not guessing
+        // and does not count towards the lockout — but an administrator should see it.
+        if (err.code === 'err.accountSuspended') {
+          db.recordLoginEvent({ email: identifier, userId: err.userId, ip, success: false, reason: 'suspended' });
+          return sendJson(res, 403, { code: err.code, error: err.message });
+        }
         const rec = noteLoginFailure(key);
+        db.recordLoginEvent({ email: identifier, ip, success: false, reason: rec.lockedUntil ? 'locked' : 'invalid' });
         if (rec.lockedUntil) {
           const minutes = Math.ceil(LOGIN_LOCK_MS / 60000);
           res.setHeader('Retry-After', String(Math.ceil(LOGIN_LOCK_MS / 1000)));
@@ -247,8 +260,8 @@ async function handleApi(req, res, pathname, method) {
     }
     if (pathname === '/api/inspections' && method === 'POST') {
       const body = await readBody(req);
-      db.saveInspection(body, user);
-      return sendJson(res, 200, { ok: true });
+      const saved = db.saveInspection(body, user);
+      return sendJson(res, 200, { ok: true, ...saved });
     }
     const actionMatch = pathname.match(/^\/api\/actions\/([^/]+)\/([^/]+)$/);
     if (actionMatch && method === 'PATCH') {
@@ -304,6 +317,100 @@ async function handleApi(req, res, pathname, method) {
     if (pathname === '/api/feedback' && method === 'GET') {
       return sendJson(res, 200, { feedback: await db.getFeedback(user) });
     }
+    // --- Approval workflow ---
+    const decideMatch = pathname.match(/^\/api\/inspections\/([^/]+)\/(review|approve)$/);
+    if (decideMatch && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.decideInspection(decodeURIComponent(decideMatch[1]), decideMatch[2], body, user));
+    }
+    if (pathname === '/api/notify' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 201, db.notifyStaff(body, user));
+    }
+    if (pathname === '/api/notifications/read' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.markNotificationsRead(user, body.ids));
+    }
+
+    // --- Administration ---
+    // Routing only: every db function below checks the caller's capability itself, so
+    // a route added here by mistake still cannot be used without the right permission.
+    if (pathname === '/api/admin/users' && method === 'GET') {
+      return sendJson(res, 200, { users: db.listUsers(user) });
+    }
+    if (pathname === '/api/admin/users' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 201, db.adminSaveUser(null, body, user));
+    }
+    const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (adminUserMatch && method === 'PATCH') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.adminSaveUser(decodeURIComponent(adminUserMatch[1]), body, user));
+    }
+    if (adminUserMatch && method === 'DELETE') {
+      db.adminDeleteUser(decodeURIComponent(adminUserMatch[1]), user);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (pathname === '/api/admin/permissions' && method === 'GET') {
+      return sendJson(res, 200, db.getPermissionMatrix(user));
+    }
+    if (pathname === '/api/admin/permissions/reset' && method === 'POST') {
+      return sendJson(res, 200, db.resetPermissions(user));
+    }
+    const permissionMatch = pathname.match(/^\/api\/admin\/permissions\/([^/]+)$/);
+    if (permissionMatch && method === 'PUT') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.setRolePermissions(decodeURIComponent(permissionMatch[1]), body.capabilities, user));
+    }
+    const correctMatch = pathname.match(/^\/api\/admin\/inspections\/([^/]+)$/);
+    if (correctMatch && method === 'PATCH') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.correctInspection(decodeURIComponent(correctMatch[1]), body, user));
+    }
+    if (pathname === '/api/admin/venues' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 201, db.saveVenue(null, body, user));
+    }
+    const venueMatch = pathname.match(/^\/api\/admin\/venues\/([^/]+)$/);
+    if (venueMatch && method === 'PATCH') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.saveVenue(decodeURIComponent(venueMatch[1]), body, user));
+    }
+    if (venueMatch && method === 'DELETE') {
+      db.deleteVenue(decodeURIComponent(venueMatch[1]), user);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (equipmentMatch && method === 'DELETE') {
+      db.deleteEquipment(decodeURIComponent(equipmentMatch[1]), user);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (pathname === '/api/admin/security' && method === 'GET') {
+      return sendJson(res, 200, db.getSecurityOverview(user));
+    }
+    if (pathname === '/api/admin/backups' && method === 'GET') {
+      return sendJson(res, 200, { backups: db.listBackups(user) });
+    }
+    if (pathname === '/api/admin/backups' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 201, db.createBackup(body.label, user));
+    }
+    const backupMatch = pathname.match(/^\/api\/admin\/backups\/([^/]+)$/);
+    if (backupMatch && method === 'GET') {
+      const backup = db.getBackup(decodeURIComponent(backupMatch[1]), user);
+      if (!backup) return sendJson(res, 404, { error: 'ไม่พบไฟล์สำรองข้อมูล' });
+      const payload = Buffer.from(backup.payload, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Length': payload.length,
+        'Content-Disposition': `attachment; filename="safecheck-backup-${backup.createdAt.slice(0, 10)}-${backup.id}.json"`
+      });
+      return res.end(payload);
+    }
+    if (pathname === '/api/admin/restore' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.restoreBackup(body, user));
+    }
+
     if (pathname === '/api/reset' && method === 'POST') {
       db.resetAll(user);
       return sendJson(res, 200, { ok: true });

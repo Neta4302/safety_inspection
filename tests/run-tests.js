@@ -86,6 +86,33 @@ const PNG_1PX = Buffer.from(
   'base64'
 );
 
+// Submits a checklist the way the browser does. The server decides who submitted it,
+// the score and the approval deadline, so those fields are deliberately junk here.
+async function submitInspection(cookie, { id, venueId = 'VEN-001', frequency = 'daily', status = 'submitted', items } = {}) {
+  return api(cookie, '/api/inspections', {
+    method: 'POST',
+    body: {
+      id: id || `INS-T-${Date.now()}-${Math.floor(Math.random() * 1000)}`, venueId, frequency,
+      inspector: 'ignored', role: 'ignored', date: new Date().toISOString(), status, score: 0, overallNote: '',
+      items: items || [{ id: 'DLY-01', result: 'pass' }, { id: 'DLY-02', result: 'pass' }]
+    }
+  });
+}
+
+async function inspectionById(cookie, id) {
+  const boot = await api(cookie, '/api/bootstrap');
+  return boot.body.inspections.find(i => i.id === id);
+}
+
+async function createAccount(adminCookie, overrides = {}) {
+  const email = overrides.email || `acct-${Date.now()}-${Math.floor(Math.random() * 1000)}@safecheck.demo`;
+  const r = await api(adminCookie, '/api/admin/users', {
+    method: 'POST',
+    body: { name: 'Test Account', email, password: PASSWORD, role: 'user', branch: 'BKK-CENTRAL', ...overrides }
+  });
+  return { ...r, email };
+}
+
 // ============================================================== test bodies
 async function unitTests() {
   level('Unit');
@@ -155,10 +182,26 @@ async function unitTests() {
     assertEqual(db.requiredExtinguishers(40), 4, '40 tables');
   });
   await test('UT-15', 'capabilitiesFor returns exactly the inspector capability set', () => {
-    assertEqual(db.capabilitiesFor('inspector').sort(), ['alert.acknowledge', 'feedback.submit', 'inspection.submit'], 'inspector caps');
+    assertEqual(db.capabilitiesFor('inspector').sort(), [
+      'action.update', 'alert.acknowledge', 'alert.escalate', 'alert.simulate',
+      'feedback.submit', 'inspection.review', 'inspection.submit', 'staff.notify'
+    ], 'inspector caps');
   });
   await test('UT-16', 'capabilitiesFor returns an empty set for an unknown role', () => {
     assertEqual(db.capabilitiesFor('hacker'), [], 'unknown role');
+  });
+  await test('UT-17', 'Exactly five roles exist: user, inspector, supervisor, manager, admin', () => {
+    assertEqual(db.ROLES, ['user', 'inspector', 'supervisor', 'manager', 'admin'], 'roles');
+    assertEqual(db.capabilitiesFor('safety'), [], 'the retired Safety Officer role has no rights');
+  });
+  await test('UT-18', 'Manager is read-only: it holds no capability that changes inspection data', () => {
+    assertEqual(db.capabilitiesFor('manager').filter(c => c !== 'feedback.submit'), [], 'manager write capabilities');
+  });
+  await test('UT-19', 'Approval deadlines: daily 17:00, monthly a week before month end, yearly 30 Nov', () => {
+    const Workflow = require(path.join(WORK_DIR, 'workflow.js'));
+    assertEqual(Workflow.approvalDeadline('2026-09-14T02:30:00Z', 'daily'), '2026-09-14T10:00:00.000Z', 'daily');
+    assertEqual(Workflow.approvalDeadline('2026-09-14T02:30:00Z', 'monthly'), '2026-09-23T16:59:59.000Z', 'monthly');
+    assertEqual(Workflow.approvalDeadline('2026-09-14T02:30:00Z', 'yearly'), '2026-11-30T16:59:59.000Z', 'yearly');
   });
 }
 
@@ -208,7 +251,7 @@ async function integrationTests() {
   await test('IT-07', 'A newly registered account can immediately log in', async () => {
     const email = `it07-${Date.now()}@safecheck.demo`;
     const s = await api(null, '/api/signup', {
-      method: 'POST', body: { name: 'IT07 Tester', email, password: PASSWORD, role: 'inspector', branch: 'BKK-EAST' }
+      method: 'POST', body: { name: 'IT07 Tester', email, password: PASSWORD, role: 'user', branch: 'BKK-EAST' }
     });
     assertEqual(s.status, 201, 'signup status');
     assertEqual((await login(email)).status, 200, 'login status');
@@ -216,7 +259,7 @@ async function integrationTests() {
   await test('IT-08', 'Signup assigns the venues of the branch that was chosen', async () => {
     const email = `it08-${Date.now()}@safecheck.demo`;
     await api(null, '/api/signup', {
-      method: 'POST', body: { name: 'IT08 Tester', email, password: PASSWORD, role: 'inspector', branch: 'BKK-EAST' }
+      method: 'POST', body: { name: 'IT08 Tester', email, password: PASSWORD, role: 'user', branch: 'BKK-EAST' }
     });
     const { cookie } = await login(email);
     const boot = await api(cookie, '/api/bootstrap');
@@ -238,6 +281,31 @@ async function integrationTests() {
     assertEqual(sent.status, 201, 'submit status');
     const after = (await api(cookie, '/api/bootstrap')).body.feedbackCount;
     assertEqual(after, before + 1, 'stored feedback count');
+  });
+  await test('IT-10', 'An account can log in with its username as well as its email', async () => {
+    const r = await login('inspector');
+    assertEqual(r.status, 200, 'status');
+    assertEqual(r.body.user.email, 'inspector@safecheck.demo', 'resolved account');
+  });
+  await test('IT-11', 'Suspending an account ends its open session and blocks new logins', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const created = await createAccount(admin.cookie);
+    assertEqual(created.status, 201, 'create status');
+    const member = await login(created.email);
+    assertEqual((await api(member.cookie, '/api/bootstrap')).status, 200, 'works before suspension');
+    const suspend = await api(admin.cookie, '/api/admin/users/' + created.body.id, { method: 'PATCH', body: { status: 'suspended' } });
+    assertEqual(suspend.status, 200, 'suspend status');
+    assertEqual((await api(member.cookie, '/api/bootstrap')).status, 401, 'the old session must stop working');
+    const again = await login(created.email);
+    assertEqual(again.status, 403, 'login status');
+    assertEqual(again.body.code, 'err.accountSuspended', 'error code');
+  });
+  await test('IT-12', 'Failed and suspended logins are recorded in the security log', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const r = await api(admin.cookie, '/api/admin/security');
+    assertEqual(r.status, 200, 'status');
+    assert(r.body.summary.failedLogins24h > 0, 'the wrong password from IT-05 should be counted');
+    assert(r.body.loginEvents.some(e => e.reason === 'suspended'), 'the attempt from IT-11 should be logged');
   });
 }
 
@@ -312,7 +380,8 @@ async function systemTests() {
   });
 
   await test('ST-04', 'Purchasing equipment clears the venue shortfall', async () => {
-    const mgr = await login('manager@safecheck.demo');
+    // Equipment is managed by the administrator; the manager role is read-only.
+    const mgr = await login('admin@safecheck.demo');
     let boot = await api(mgr.cookie, '/api/bootstrap');
     const short = boot.body.equipmentCompliance.find(c => c.shortfall > 0);
     assert(short, 'expected at least one venue below the required quantity');
@@ -335,7 +404,7 @@ async function systemTests() {
     const admin = await login('admin@safecheck.demo');
     const email = `st05-${Date.now()}@safecheck.demo`;
     await api(null, '/api/signup', {
-      method: 'POST', body: { name: 'ST05', email, password: PASSWORD, role: 'inspector', branch: 'BKK-CENTRAL' }
+      method: 'POST', body: { name: 'ST05', email, password: PASSWORD, role: 'user', branch: 'BKK-CENTRAL' }
     });
     const reset = await api(admin.cookie, '/api/reset', { method: 'POST' });
     assertEqual(reset.status, 200, 'reset status');
@@ -354,6 +423,125 @@ async function systemTests() {
     assertEqual((await api(admin.cookie, '/api/reset', { method: 'POST' })).status, 200, 'reset status');
     const after = (await api(admin.cookie, '/api/bootstrap')).body.feedbackCount;
     assertEqual(after, before, 'feedback count must survive a reset');
+  });
+
+  await test('ST-07', 'Staff submission: Inspector reviews, Supervisor approves, record becomes final', async () => {
+    const staff = await login('staff@safecheck.demo');
+    const sent = await submitInspection(staff.cookie);
+    assertEqual(sent.status, 200, 'submit status');
+    assertEqual(sent.body.reviewStatus, 'pending_review', 'first stage');
+    assert(sent.body.deadline, 'an approval deadline must be set');
+    const id = sent.body.id;
+
+    const sup = await login('supervisor@safecheck.demo');
+    const early = await api(sup.cookie, `/api/inspections/${id}/approve`, { method: 'POST', body: { decision: 'approve' } });
+    assertEqual(early.status, 409, 'the supervisor cannot skip the inspector');
+
+    const insp = await login('inspector@safecheck.demo');
+    const review = await api(insp.cookie, `/api/inspections/${id}/review`, { method: 'POST', body: { decision: 'approve' } });
+    assertEqual(review.status, 200, 'review status');
+    assertEqual(review.body.reviewStatus, 'pending_approval', 'after review');
+
+    const approve = await api(sup.cookie, `/api/inspections/${id}/approve`, { method: 'POST', body: { decision: 'approve' } });
+    assertEqual(approve.status, 200, 'approve status');
+    const record = await inspectionById(sup.cookie, id);
+    assertEqual(record.reviewStatus, 'approved', 'final stage');
+    assertEqual(record.history.map(h => h.action), ['submitted', 'reviewed', 'approved'], 'timeline');
+  });
+
+  await test('ST-08', 'A rejection needs a reason, reaches the submitter, and the record can be resubmitted', async () => {
+    const staff = await login('staff@safecheck.demo');
+    const id = (await submitInspection(staff.cookie)).body.id;
+    const insp = await login('inspector@safecheck.demo');
+    const noReason = await api(insp.cookie, `/api/inspections/${id}/review`, { method: 'POST', body: { decision: 'reject', note: '  ' } });
+    assertEqual(noReason.status, 400, 'reject without a reason');
+    const reject = await api(insp.cookie, `/api/inspections/${id}/review`, { method: 'POST', body: { decision: 'reject', note: 'แนบรูปไม่ครบ' } });
+    assertEqual(reject.body.reviewStatus, 'rejected', 'after rejection');
+
+    const boot = await api(staff.cookie, '/api/bootstrap');
+    const notice = boot.body.notifications.find(n => n.inspectionId === id && n.kind === 'inspection.rejected');
+    assert(notice && notice.params.note === 'แนบรูปไม่ครบ', 'the submitter must be told why');
+
+    const again = await submitInspection(staff.cookie, { id });
+    assertEqual(again.status, 200, 'resubmit status');
+    assertEqual(again.body.reviewStatus, 'pending_review', 'back to the inspector');
+    const record = await inspectionById(staff.cookie, id);
+    assertEqual(record.history.map(h => h.action), ['submitted', 'rejected', 'resubmitted'], 'timeline');
+  });
+
+  await test('ST-09', 'An Inspector can send a notice to the staff of a venue', async () => {
+    const insp = await login('inspector@safecheck.demo');
+    const r = await api(insp.cookie, '/api/notify', { method: 'POST', body: { venueId: 'VEN-001', message: 'ย้ายลังออกจากทางหนีไฟก่อนเปิดร้าน' } });
+    assertEqual(r.status, 201, 'status');
+    assert(r.body.sent >= 1, 'at least one staff member should receive it');
+    const staff = await login('staff@safecheck.demo');
+    const boot = await api(staff.cookie, '/api/bootstrap');
+    assert(boot.body.notifications.some(n => n.kind === 'staff.message' && n.params.message.includes('ทางหนีไฟ')), 'staff did not receive the notice');
+  });
+
+  await test('ST-10', 'An administrator creates an account, changes its role, then deletes it', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const created = await createAccount(admin.cookie, { username: `st10${Date.now() % 100000}` });
+    assertEqual(created.status, 201, 'create');
+    const promote = await api(admin.cookie, '/api/admin/users/' + created.body.id, { method: 'PATCH', body: { role: 'supervisor' } });
+    assertEqual(promote.status, 200, 'role change');
+    const member = await login(created.body.username);
+    assertEqual(member.body.user.role, 'supervisor', 'the new role applies at login');
+    assertEqual((await api(admin.cookie, '/api/admin/users/' + created.body.id, { method: 'DELETE' })).status, 200, 'delete');
+    assertEqual((await login(created.email)).status, 400, 'a deleted account can no longer log in');
+  });
+
+  await test('ST-11', 'An administrator corrects a wrong result; the score is recomputed and the change is recorded', async () => {
+    const admin = await login('admin@safecheck.demo');
+    // Seed record INS-2026-0007 has DLY-03 marked as failed.
+    const before = await inspectionById(admin.cookie, 'INS-2026-0007');
+    assert(before && before.score < 100, 'the seed record should start below 100');
+    const noReason = await api(admin.cookie, '/api/admin/inspections/INS-2026-0007', { method: 'PATCH', body: { items: [{ id: 'DLY-03', result: 'pass' }] } });
+    assertEqual(noReason.status, 400, 'a correction needs a reason');
+    const fix = await api(admin.cookie, '/api/admin/inspections/INS-2026-0007', {
+      method: 'PATCH', body: { reason: 'ผู้ตรวจกดผิดช่อง ยืนยันจากรูปถ่ายแล้ว', items: [{ id: 'DLY-03', result: 'pass' }] }
+    });
+    assertEqual(fix.status, 200, 'correction status');
+    assertEqual(fix.body.score, 100, 'recomputed score');
+    const after = await inspectionById(admin.cookie, 'INS-2026-0007');
+    assertEqual(after.history[after.history.length - 1].action, 'corrected', 'timeline entry');
+    const security = await api(admin.cookie, '/api/admin/security');
+    assert(security.body.audit.some(a => a.action === 'data.correct' && a.target === 'INS-2026-0007'), 'audit log entry missing');
+  });
+
+  await test('ST-12', 'An administrator manages venues and equipment; a venue with history cannot be deleted', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const venue = await api(admin.cookie, '/api/admin/venues', {
+      method: 'POST', body: { name: 'ST-12 Test Cafe', type: 'Restaurant', location: 'เขตบางรัก กรุงเทพฯ', branch: 'BKK-CENTRAL', tablesCount: 12 }
+    });
+    assertEqual(venue.status, 201, 'create venue');
+    const edit = await api(admin.cookie, '/api/admin/venues/' + venue.body.id, { method: 'PATCH', body: { tablesCount: 25 } });
+    assertEqual(edit.body.tablesCount, 25, 'edited table count');
+    const eq = await api(admin.cookie, '/api/equipment', {
+      method: 'POST', body: { venueId: venue.body.id, type: 'smoke_detector', label: 'ST-12 detector', installDate: '2026-01-01', expiryDate: '2030-01-01' }
+    });
+    assertEqual(eq.status, 201, 'add equipment');
+    assertEqual((await api(admin.cookie, '/api/equipment/' + eq.body.id, { method: 'DELETE' })).status, 200, 'delete equipment');
+    assertEqual((await api(admin.cookie, '/api/admin/venues/' + venue.body.id, { method: 'DELETE' })).status, 200, 'delete an unused venue');
+    assertEqual((await api(admin.cookie, '/api/admin/venues/VEN-001', { method: 'DELETE' })).status, 409, 'a venue with inspection history');
+  });
+
+  await test('ST-13', 'Backup and restore return data to the backed-up state, with a safety backup taken first', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const backup = await api(admin.cookie, '/api/admin/backups', { method: 'POST', body: { label: 'ST-13' } });
+    assertEqual(backup.status, 201, 'backup status');
+    const venue = await api(admin.cookie, '/api/admin/venues', {
+      method: 'POST', body: { name: 'ST-13 Added After Backup', type: 'Bar & Pub', location: 'เขตบางรัก กรุงเทพฯ', branch: 'BKK-NORTH', tablesCount: 8 }
+    });
+    assertEqual(venue.status, 201, 'venue added after the backup');
+    const restore = await api(admin.cookie, '/api/admin/restore', { method: 'POST', body: { backupId: backup.body.id } });
+    assertEqual(restore.status, 200, 'restore status');
+    assert(restore.body.safetyBackupId, 'a safety backup must be taken before restoring');
+    const boot = await api(admin.cookie, '/api/bootstrap');
+    assert(!boot.body.venues.some(v => v.id === venue.body.id), 'the venue added after the backup should be gone');
+    const bad = await api(admin.cookie, '/api/admin/restore', { method: 'POST', body: { payload: '{"not":"a backup"}' } });
+    assertEqual(bad.status, 400, 'an invalid file is refused');
+    assertEqual((await api(admin.cookie, '/api/bootstrap')).body.venues.length, boot.body.venues.length, 'a refused restore changes nothing');
   });
 }
 
@@ -396,7 +584,7 @@ async function acceptanceTests() {
   });
   await test('AT-06', 'REQ-6 All required screens are present in the interface', () => {
     const required = ['dashboard', 'venues', 'inspection', 'result', 'history', 'actions',
-      'ai-monitor', 'alerts', 'sensors', 'equipment', 'standards', 'testing', 'report'];
+      'ai-monitor', 'alerts', 'sensors', 'equipment', 'standards', 'testing', 'report', 'approvals', 'admin'];
     const missing = required.filter(v => !html.includes(`id="view-${v}"`));
     assertEqual(missing, [], 'missing views');
   });
@@ -404,6 +592,24 @@ async function acceptanceTests() {
     assert(content && Array.isArray(content.aiScopeDetects) && content.aiScopeDetects.length > 0,
       'expected documented AI detection scope');
     assert(html.includes('id="view-ai-monitor"'), 'AI monitor screen missing');
+  });
+  await test('AT-08', 'REQ-8 Approval deadlines follow the business rule (daily: before 17:00 Bangkok time)', async () => {
+    const staff = await login('staff@safecheck.demo');
+    const sent = await submitInspection(staff.cookie);
+    const deadline = new Date(sent.body.deadline);
+    // 17:00 in Bangkok is 10:00 UTC
+    assertEqual(deadline.getUTCHours(), 10, 'deadline hour (UTC)');
+    assertEqual(deadline.getUTCMinutes(), 0, 'deadline minute');
+    assert(deadline.getTime() > Date.now(), 'the deadline must be in the future when submitted');
+  });
+  await test('AT-09', 'REQ-9 The system has exactly five roles: Admin, Manager, Supervisor, Inspector, User', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const perms = await api(admin.cookie, '/api/admin/permissions');
+    assertEqual([...perms.body.roles].sort(), ['admin', 'inspector', 'manager', 'supervisor', 'user'], 'roles');
+    const oldRole = await api(null, '/api/signup', {
+      method: 'POST', body: { name: 'X', email: `at09-${Date.now()}@safecheck.demo`, password: PASSWORD, role: 'safety' }
+    });
+    assertEqual(oldRole.status, 400, 'the retired Safety Officer role cannot be used');
   });
 }
 
@@ -453,7 +659,7 @@ async function nonFunctionalTests() {
     assert(codes.includes(429), 'expected a 429 after repeated failures, got ' + codes.join(','));
   });
   await test('NFT-05', 'Public signup cannot grant an elevated role', async () => {
-    for (const role of ['admin', 'manager', 'supervisor']) {
+    for (const role of ['admin', 'manager', 'supervisor', 'inspector']) {
       const r = await api(null, '/api/signup', {
         method: 'POST',
         body: { name: 'X', email: `esc-${role}-${Date.now()}@safecheck.demo`, password: PASSWORD, role }
@@ -513,7 +719,7 @@ async function nonFunctionalTests() {
     assertEqual(r.status, 400, 'more than 3 files per item must be refused');
   });
   await test('NFT-11', 'A non-administrator cannot read other testers\u2019 feedback', async () => {
-    for (const role of ['inspector', 'safety', 'supervisor', 'manager']) {
+    for (const role of ['staff', 'inspector', 'supervisor', 'manager']) {
       const { cookie } = await login(role + '@safecheck.demo');
       const direct = await api(cookie, '/api/feedback');
       assertEqual(direct.status, 403, role + ' direct read');
@@ -534,12 +740,96 @@ async function nonFunctionalTests() {
     const r = await api(cookie, '/api/feedback', { method: 'POST', body: { testerName: '   ' } });
     assertEqual(r.status, 400, 'status');
   });
+  await test('NFT-14', 'Manager is read-only: every write is refused by the server', async () => {
+    const mgr = await login('manager@safecheck.demo');
+    assertEqual((await submitInspection(mgr.cookie)).status, 403, 'submit inspection');
+    assertEqual((await api(mgr.cookie, '/api/equipment', { method: 'POST', body: { venueId: 'VEN-001', type: 'fire_extinguisher', label: 'x' } })).status, 403, 'add equipment');
+    assertEqual((await api(mgr.cookie, '/api/alerts', { method: 'POST', body: { venueId: 'VEN-001', anomalyType: 'smoke', level: 'danger', confidence: 90 } })).status, 403, 'raise alert');
+    assertEqual((await api(mgr.cookie, '/api/actions/INS-2026-0007/DLY-03', { method: 'PATCH', body: { actionStatus: 'closed' } })).status, 403, 'update action');
+    assertEqual((await api(mgr.cookie, '/api/inspections/INS-2026-0009/approve', { method: 'POST', body: { decision: 'approve' } })).status, 403, 'approve');
+  });
+  await test('NFT-15', 'Each approval step is limited to its own role', async () => {
+    const staff = await login('staff@safecheck.demo');
+    const id = (await submitInspection(staff.cookie)).body.id;
+    const decide = (cookie, step) => api(cookie, `/api/inspections/${id}/${step}`, { method: 'POST', body: { decision: 'approve' } });
+    assertEqual((await decide(staff.cookie, 'review')).status, 403, 'staff cannot review');
+    const insp = await login('inspector@safecheck.demo');
+    assertEqual((await decide(insp.cookie, 'review')).status, 200, 'inspector reviews');
+    assertEqual((await decide(insp.cookie, 'approve')).status, 403, 'inspector cannot give final approval');
+    const admin = await login('admin@safecheck.demo');
+    assertEqual((await decide(admin.cookie, 'approve')).status, 403, 'the administrator does not approve inspections');
+  });
+  await test('NFT-16', 'Every administration endpoint refuses non-administrators', async () => {
+    const endpoints = [
+      ['GET', '/api/admin/users'], ['POST', '/api/admin/users'], ['GET', '/api/admin/permissions'],
+      ['PUT', '/api/admin/permissions/user'], ['PATCH', '/api/admin/inspections/INS-2026-0007'],
+      ['POST', '/api/admin/venues'], ['GET', '/api/admin/security'], ['GET', '/api/admin/backups'], ['POST', '/api/admin/restore']
+    ];
+    for (const who of ['staff', 'inspector', 'supervisor', 'manager']) {
+      const { cookie } = await login(who + '@safecheck.demo');
+      for (const [method, url] of endpoints) {
+        const r = await api(cookie, url, { method, body: method === 'GET' ? undefined : {} });
+        assertEqual(r.status, 403, `${who} ${method} ${url}`);
+      }
+    }
+  });
+  await test('NFT-17', 'Permission changes apply immediately; administrators cannot remove their own admin rights', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const mgr = await login('manager@safecheck.demo');
+    const alertBody = { venueId: 'VEN-001', anomalyType: 'smoke', level: 'caution', confidence: 85 };
+    assertEqual((await api(mgr.cookie, '/api/alerts', { method: 'POST', body: alertBody })).status, 403, 'before the change');
+    const grant = await api(admin.cookie, '/api/admin/permissions/manager', { method: 'PUT', body: { capabilities: ['feedback.submit', 'alert.simulate'] } });
+    assertEqual(grant.status, 200, 'grant status');
+    assertEqual((await api(mgr.cookie, '/api/alerts', { method: 'POST', body: alertBody })).status, 201, 'same session, after the change');
+    const lockout = await api(admin.cookie, '/api/admin/permissions/admin', { method: 'PUT', body: { capabilities: ['feedback.read'] } });
+    assertEqual(lockout.status, 400, 'removing admin rights from administrators');
+    assertEqual(lockout.body.code, 'err.lockedCapability', 'error code');
+    await api(admin.cookie, '/api/admin/permissions/reset', { method: 'POST' });
+    assertEqual((await api(mgr.cookie, '/api/alerts', { method: 'POST', body: alertBody })).status, 403, 'after restoring defaults');
+  });
+  await test('NFT-18', 'Shared demo accounts and an administrator’s own account are protected', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const users = (await api(admin.cookie, '/api/admin/users')).body.users;
+    const staffDemo = users.find(u => u.email === 'staff@safecheck.demo');
+    const self = users.find(u => u.email === 'admin@safecheck.demo');
+    const del = await api(admin.cookie, '/api/admin/users/' + staffDemo.id, { method: 'DELETE' });
+    assertEqual(del.status, 403, 'delete a shared demo account');
+    assertEqual(del.body.code, 'err.demoProtected', 'error code');
+    assertEqual((await api(admin.cookie, '/api/admin/users/' + self.id, { method: 'PATCH', body: { role: 'user' } })).status, 403, 'demote own account');
+  });
+  await test('NFT-19', 'Backup files contain no user accounts, passwords or password hashes', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const backup = await api(admin.cookie, '/api/admin/backups', { method: 'POST', body: { label: 'NFT-19' } });
+    const res = await api(admin.cookie, '/api/admin/backups/' + backup.body.id, { raw: true });
+    assertEqual(res.status, 200, 'download status');
+    assert(/attachment/.test(res.headers.get('content-disposition') || ''), 'should download as a file');
+    const text = await res.text();
+    assert(!/password/i.test(text), 'the backup mentions passwords');
+    assert(!JSON.parse(text).tables.users, 'the backup must not include the users table');
+  });
+  await test('NFT-20', 'A record in review cannot be changed by its submitter or by anyone else', async () => {
+    const staff = await login('staff@safecheck.demo');
+    const id = (await submitInspection(staff.cookie)).body.id;
+    assertEqual((await submitInspection(staff.cookie, { id, items: [{ id: 'DLY-01', result: 'fail' }] })).status, 409, 'submitter editing a record in review');
+    const insp = await login('inspector@safecheck.demo');
+    assertEqual((await submitInspection(insp.cookie, { id })).status, 403, 'another user overwriting the record');
+  });
+  await test('NFT-21', 'The security log masks the email and IP address of real people', async () => {
+    await fetch(`${BASE}/api/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'real.person@example.com', password: 'wrong' })
+    });
+    const admin = await login('admin@safecheck.demo');
+    const serialised = JSON.stringify((await api(admin.cookie, '/api/admin/security')).body);
+    assert(!serialised.includes('real.person@example.com'), 'a real email address was shown in full');
+    assert(serialised.includes('re***@example.com'), 'expected the masked form of the address');
+  });
 }
 
 // ==================================================================== runner
 function copyApp() {
   fs.mkdirSync(path.join(WORK_DIR, 'data'), { recursive: true });
-  for (const f of ['db.js', 'server.js', 'core.js', 'i18n.js', 'api.js', 'app.js', 'index.html', 'styles.css', 'package.json']) {
+  for (const f of ['db.js', 'server.js', 'core.js', 'workflow.js', 'i18n.js', 'api.js', 'app.js', 'index.html', 'styles.css', 'package.json']) {
     fs.copyFileSync(path.join(APP_DIR, f), path.join(WORK_DIR, f));
   }
 }
