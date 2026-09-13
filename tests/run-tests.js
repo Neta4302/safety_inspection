@@ -307,6 +307,20 @@ async function integrationTests() {
     assert(r.body.summary.failedLogins24h > 0, 'the wrong password from IT-05 should be counted');
     assert(r.body.loginEvents.some(e => e.reason === 'suspended'), 'the attempt from IT-11 should be logged');
   });
+  await test('IT-13', 'Each login is its own session, which the user can see and end from another device', async () => {
+    const first = await login('supervisor@safecheck.demo');
+    const second = await login('supervisor@safecheck.demo');
+    const secondId = (await api(second.cookie, '/api/sessions')).body.sessions.find(s => s.current).sessionId;
+    const list = await api(first.cookie, '/api/sessions');
+    assertEqual(list.status, 200, 'list status');
+    assertEqual(list.body.sessions.filter(s => s.current).length, 1, 'exactly one session is marked as this device');
+    assert(list.body.sessions.some(s => s.sessionId === secondId && !s.current), 'the other login is listed');
+    assertEqual((await api(first.cookie, '/api/sessions/' + secondId, { method: 'DELETE' })).status, 200, 'end the other session');
+    const refused = await api(second.cookie, '/api/bootstrap');
+    assertEqual(refused.status, 401, 'the ended session is refused');
+    assertEqual(refused.body.code, 'err.sessionEnded', 'the browser is told the session ended');
+    assertEqual((await api(first.cookie, '/api/bootstrap')).status, 200, 'the first session still works');
+  });
 }
 
 async function systemTests() {
@@ -543,6 +557,47 @@ async function systemTests() {
     assertEqual(bad.status, 400, 'an invalid file is refused');
     assertEqual((await api(admin.cookie, '/api/bootstrap')).body.venues.length, boot.body.venues.length, 'a refused restore changes nothing');
   });
+
+  await test('ST-14', 'An administrator sees who is signed in and can sign a session out', async () => {
+    const staff = await login('staff@safecheck.demo');
+    const mine = (await api(staff.cookie, '/api/sessions')).body.sessions.find(s => s.current);
+    const admin = await login('admin@safecheck.demo');
+    const list = await api(admin.cookie, '/api/admin/sessions');
+    assertEqual(list.status, 200, 'status');
+    assert(list.body.active.some(s => s.sessionId === mine.sessionId && s.userName === 'มานี มีสุข'), 'the staff session is listed as active');
+    assertEqual((await api(admin.cookie, '/api/admin/sessions/' + mine.sessionId, { method: 'DELETE' })).status, 200, 'revoke status');
+    assertEqual((await api(staff.cookie, '/api/bootstrap')).status, 401, 'the revoked session is refused');
+    const ended = (await api(admin.cookie, '/api/admin/sessions')).body.recent.find(s => s.sessionId === mine.sessionId);
+    assert(ended && ended.endReason === 'revoked', 'the session stays in history with its reason');
+    const own = (await api(admin.cookie, '/api/sessions')).body.sessions.find(s => s.current);
+    assertEqual((await api(admin.cookie, '/api/admin/sessions/' + own.sessionId, { method: 'DELETE' })).status, 400, 'administrators log out of their own session instead');
+  });
+
+  await test('ST-15', 'The activity log shows what a person did during one login session', async () => {
+    const insp = await login('inspector@safecheck.demo');
+    const session = (await api(insp.cookie, '/api/sessions')).body.sessions.find(s => s.current);
+    await api(insp.cookie, '/api/activity/view', { method: 'POST', body: { view: 'venues' } });
+    assertEqual((await submitInspection(insp.cookie, { venueId: 'VEN-004' })).status, 200, 'submit');
+    const admin = await login('admin@safecheck.demo');
+    const log = await api(admin.cookie, '/api/admin/activity?sessionId=' + session.sessionId);
+    assertEqual(log.status, 200, 'status');
+    assertEqual(log.body.rows.map(r => r.action).reverse(), ['session.login', 'page.view', 'inspection.submit'], 'actions in order');
+    assert(log.body.rows.every(r => r.actorName === 'กิตติยา พรหมดี'), 'every entry belongs to that person');
+  });
+
+  await test('ST-16', 'An administrator adds a place for inspection and assigns it to an inspector', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const inspector = (await api(admin.cookie, '/api/admin/users')).body.users.find(u => u.email === 'inspector@safecheck.demo');
+    const venue = await api(admin.cookie, '/api/admin/venues', {
+      method: 'POST', body: { name: 'ST-16 Rooftop Bar', type: 'Bar & Pub', location: 'เขตบางรัก กรุงเทพฯ', branch: 'BKK-CENTRAL', tablesCount: 18, assignees: [inspector.id] }
+    });
+    assertEqual(venue.status, 201, 'create');
+    const insp = await login('inspector@safecheck.demo');
+    assert((await api(insp.cookie, '/api/bootstrap')).body.venues.some(v => v.id === venue.body.id), 'the new place appears for the assigned inspector');
+    assertEqual((await submitInspection(insp.cookie, { venueId: venue.body.id })).status, 200, 'the inspector can inspect it');
+    const staff = await login('staff@safecheck.demo');
+    assert(!(await api(staff.cookie, '/api/bootstrap')).body.venues.some(v => v.id === venue.body.id), 'people not assigned do not see it');
+  });
 }
 
 async function acceptanceTests() {
@@ -763,7 +818,8 @@ async function nonFunctionalTests() {
     const endpoints = [
       ['GET', '/api/admin/users'], ['POST', '/api/admin/users'], ['GET', '/api/admin/permissions'],
       ['PUT', '/api/admin/permissions/user'], ['PATCH', '/api/admin/inspections/INS-2026-0007'],
-      ['POST', '/api/admin/venues'], ['GET', '/api/admin/security'], ['GET', '/api/admin/backups'], ['POST', '/api/admin/restore']
+      ['POST', '/api/admin/venues'], ['GET', '/api/admin/security'], ['GET', '/api/admin/backups'], ['POST', '/api/admin/restore'],
+      ['GET', '/api/admin/sessions'], ['DELETE', '/api/admin/sessions/any'], ['GET', '/api/admin/activity']
     ];
     for (const who of ['staff', 'inspector', 'supervisor', 'manager']) {
       const { cookie } = await login(who + '@safecheck.demo');
@@ -823,6 +879,15 @@ async function nonFunctionalTests() {
     const serialised = JSON.stringify((await api(admin.cookie, '/api/admin/security')).body);
     assert(!serialised.includes('real.person@example.com'), 'a real email address was shown in full');
     assert(serialised.includes('re***@example.com'), 'expected the masked form of the address');
+  });
+  await test('NFT-22', 'Session lists and the activity log never reveal session tokens', async () => {
+    const admin = await login('admin@safecheck.demo');
+    const token = admin.cookie.replace('sid=', '');
+    const text = JSON.stringify((await api(admin.cookie, '/api/admin/sessions')).body) +
+      JSON.stringify((await api(admin.cookie, '/api/admin/activity')).body) +
+      JSON.stringify((await api(admin.cookie, '/api/sessions')).body);
+    assert(!text.includes(token), 'a session token was exposed');
+    assert(!/"token"/.test(text), 'a token field was exposed');
   });
 }
 

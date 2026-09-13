@@ -239,6 +239,26 @@ ensureColumn('inspections', 'review_status', "review_status TEXT DEFAULT ''");
 ensureColumn('inspections', 'submitted_by', "submitted_by TEXT DEFAULT ''");
 ensureColumn('inspections', 'deadline', "deadline TEXT DEFAULT ''");
 ensureColumn('inspections', 'history_json', "history_json TEXT NOT NULL DEFAULT '[]'");
+// Sessions are ended rather than deleted, so an administrator can still see who was
+// signed in, from which device, and how each session ended. session_id is a public
+// handle for a session; the token is a secret that only ever travels as the cookie.
+ensureColumn('sessions', 'session_id', "session_id TEXT DEFAULT ''");
+ensureColumn('sessions', 'ip', "ip TEXT DEFAULT ''");
+ensureColumn('sessions', 'user_agent', "user_agent TEXT DEFAULT ''");
+ensureColumn('sessions', 'last_seen_at', "last_seen_at TEXT DEFAULT ''");
+ensureColumn('sessions', 'ended_at', "ended_at TEXT DEFAULT ''");
+ensureColumn('sessions', 'end_reason', "end_reason TEXT DEFAULT ''");
+db.prepare("SELECT token FROM sessions WHERE session_id IS NULL OR session_id = ''").all()
+  .forEach(r => db.prepare('UPDATE sessions SET session_id = ? WHERE token = ?').run(crypto.randomBytes(8).toString('hex'), r.token));
+// Activity log: the role and login session each action was taken in.
+ensureColumn('audit_log', 'actor_role', "actor_role TEXT DEFAULT ''");
+ensureColumn('audit_log', 'session_id', "session_id TEXT DEFAULT ''");
+ensureColumn('audit_log', 'ip', "ip TEXT DEFAULT ''");
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_log(session_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+`);
 
 // --- Evidence media rules ---------------------------------------------------------
 const MEDIA_LIMITS = {
@@ -320,7 +340,7 @@ const ALL_CAPABILITIES = [
   'alert.acknowledge', 'alert.escalate', 'alert.close', 'action.update', 'alert.simulate',
   'feedback.submit', 'feedback.read',
   'user.manage', 'role.manage', 'data.correct', 'venue.manage', 'equipment.manage',
-  'security.view', 'system.backup', 'system.reset'
+  'security.view', 'activity.view', 'session.manage', 'system.backup', 'system.reset'
 ];
 
 // Defaults only. The live matrix is stored in role_permissions so an administrator can
@@ -337,13 +357,14 @@ const DEFAULT_CAPABILITIES = {
   // can both correct a record and sign it off.
   admin:      ['alert.acknowledge', 'alert.escalate', 'alert.close', 'action.update', 'alert.simulate',
                'feedback.submit', 'feedback.read', 'user.manage', 'role.manage', 'data.correct',
-               'venue.manage', 'equipment.manage', 'security.view', 'system.backup', 'system.reset']
+               'venue.manage', 'equipment.manage', 'security.view', 'activity.view', 'session.manage',
+               'system.backup', 'system.reset']
 };
 const CAPABILITIES = DEFAULT_CAPABILITIES;
 // Taking these away from administrators would lock everyone out of the screens
 // needed to give them back.
 const LOCKED_ADMIN_CAPABILITIES = ['user.manage', 'role.manage'];
-const ADMIN_AREA_CAPABILITIES = ['user.manage', 'role.manage', 'data.correct', 'venue.manage', 'equipment.manage', 'security.view', 'system.backup'];
+const ADMIN_AREA_CAPABILITIES = ['user.manage', 'role.manage', 'data.correct', 'venue.manage', 'equipment.manage', 'security.view', 'activity.view', 'session.manage', 'system.backup'];
 
 let permissionCache = null;
 
@@ -370,6 +391,21 @@ function capabilitiesFor(role) {
 function can(user, capability) { return !!user && capabilitiesFor(user.role).includes(capability); }
 
 if (db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n === 0) writeDefaultPermissions();
+
+// A capability added in a later version would otherwise be missing from a database whose
+// permissions were saved earlier — administrators could never see the new screens. New
+// capabilities are granted to the roles that have them by default, once; after that the
+// administrator's own choices stand. Before this list was tracked, the two session
+// capabilities were the only ones that did not exist yet.
+(function grantNewCapabilities() {
+  const stored = db.prepare("SELECT value FROM app_meta WHERE key = 'known_capabilities'").get();
+  const known = stored ? JSON.parse(stored.value) : ALL_CAPABILITIES.filter(c => c !== 'activity.view' && c !== 'session.manage');
+  const added = ALL_CAPABILITIES.filter(c => !known.includes(c));
+  const grant = db.prepare('INSERT OR IGNORE INTO role_permissions (role, capability) VALUES (?,?)');
+  added.forEach(cap => ROLES.filter(r => DEFAULT_CAPABILITIES[r].includes(cap)).forEach(r => grant.run(r, cap)));
+  db.prepare("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('known_capabilities', ?)").run(JSON.stringify(ALL_CAPABILITIES));
+  if (added.length) permissionCache = null;
+})();
 
 function httpError(status, code, message) { const err = new Error(message); err.code = code; err.status = status; return err; }
 function forbidden(code, message) { return httpError(403, code, message); }
@@ -716,6 +752,7 @@ function addMedia({ mime, filename, bytes }, user) {
   const id = genId('MED');
   db.prepare('INSERT INTO media (id, inspection_id, item_id, kind, mime, filename, size, bytes, created_at, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?,?)')
     .run(id, null, null, kind, mime, filename || '', bytes.length, bytes, new Date().toISOString(), user.id);
+  audit(user, 'media.upload', id, `${kind} · ${filename || ''}`);
   return { id, kind, mime, name: filename || '', size: bytes.length };
 }
 
@@ -751,6 +788,7 @@ function deleteMedia(id, user) {
   if (!row) return;
   assertMediaVisible(row, user);
   removeMediaRow(id);
+  audit(user, 'media.delete', id, row.filename || '');
 }
 
 // Ties uploaded media to the inspection once it is saved, and clears out anything
@@ -824,6 +862,9 @@ function saveInspection(ins, user) {
       .run(ins.date || now, ins.venueId, ins.date || now);
     notifyNextReviewers(ins.id);
   }
+  const venue = venueRow(ins.venueId);
+  const saveAction = status === 'draft' ? 'inspection.draft' : (existing && existing.review_status === 'rejected' ? 'inspection.resubmit' : 'inspection.submit');
+  audit(user, saveAction, ins.id, `${venue ? venue.name : ins.venueId} · ${ins.frequency} · ${score}`);
   return { id: ins.id, status, reviewStatus, deadline, score };
 }
 
@@ -834,6 +875,7 @@ function updateActionStatus(inspectionId, itemId, actionStatus, user) {
   assertVenueVisible(user, row.venue_id);
   const items = JSON.parse(row.items_json).map(item => item.id === itemId ? { ...item, actionStatus } : item);
   db.prepare('UPDATE inspections SET items_json = ? WHERE id = ?').run(JSON.stringify(items), inspectionId);
+  audit(user, 'action.update', `${inspectionId}/${itemId}`, actionStatus);
 }
 
 // --- Approval workflow -------------------------------------------------------------
@@ -972,6 +1014,7 @@ function createAlert(alert, user) {
   db.prepare('INSERT INTO ai_alerts (id, venue_id, anomaly_type, level, confidence, created_at, status, acknowledged_at, escalated_at, closed_at, variant_index, obstruction_pct, zone_index, staff_index) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(id, alert.venueId, alert.anomalyType, alert.level, alert.confidence, new Date().toISOString(), 'notified', '', '', '',
       alert.variantIndex || 0, alert.obstructionPct ?? null, alert.zoneIndex || 0, alert.staffIndex || 0);
+  audit(user, 'alert.create', id, `${alert.venueId} · ${alert.anomalyType} · ${alert.level}`);
   return getAlerts(user).find(a => a.id === id);
 }
 
@@ -997,6 +1040,7 @@ function updateAlert(id, patch, user) {
   };
   db.prepare('UPDATE ai_alerts SET status=?, acknowledged_at=?, escalated_at=?, closed_at=? WHERE id=?')
     .run(next.status, next.acknowledged_at, next.escalated_at, next.closed_at, id);
+  if (patch.status && patch.status !== existing.status) audit(user, 'alert.' + patch.status, id, existing.venue_id);
 }
 
 const EQUIPMENT_TYPES = ['fire_extinguisher', 'smoke_detector', 'exit_sign', 'sprinkler_head', 'emergency_light'];
@@ -1162,6 +1206,7 @@ async function addFeedback(body, user) {
   } else {
     db.prepare('INSERT INTO uat_feedback ' + columns + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(...values);
   }
+  audit(user, 'feedback.submit', values[0], values[2]);
   return { id: values[0], storedIn: USE_PG ? 'postgres' : 'sqlite' };
 }
 
@@ -1231,6 +1276,7 @@ function createUser({ name, email, password, role, branch }) {
   // A new field account becomes responsible for the venues of the branch it joined.
   // Without this a new inspector would log in to a completely empty dashboard.
   assignVenues(id, db.prepare('SELECT id FROM venues WHERE branch = ?').all(safeBranch).map(r => r.id));
+  audit({ id, name, role }, 'user.signup', maskEmail(email), safeBranch);
   return publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(id));
 }
 
@@ -1257,33 +1303,200 @@ function verifyLogin(identifier, password) {
   return publicUser(row);
 }
 
-function createSession(userId) {
+// --- Sessions ------------------------------------------------------------------------
+// A session ends when the person logs out, after SESSION_IDLE_MINUTES without any
+// request, 7 days after login, when an administrator revokes it, or when the account is
+// suspended or its password changes. An open, visible tab keeps its session alive
+// because the app checks for updates every minute.
+const SESSION_IDLE_MS = (Number(process.env.SESSION_IDLE_MINUTES) || 120) * 60 * 1000;
+const LAST_SEEN_WRITE_MS = 60 * 1000;   // one write a minute is plenty for "last active"
+const SESSION_HISTORY_MS = 30 * 24 * 60 * 60 * 1000;
+
+function describeDevice(userAgent) {
+  const ua = String(userAgent || '');
+  if (!ua) return '';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Chrome\//.test(ua) ? 'Chrome'
+    : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : /node|undici|curl/i.test(ua) ? 'Script' : 'Browser';
+  const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+    : /Windows/.test(ua) ? 'Windows' : /Macintosh|Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} · ${os}` : browser;
+}
+
+function createSession(user, meta = {}) {
+  const userId = typeof user === 'string' ? user : user.id;
   const token = crypto.randomBytes(32).toString('hex');
+  const sessionId = crypto.randomBytes(8).toString('hex');
   const now = new Date();
-  db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?,?,?,?)')
-    .run(token, userId, now.toISOString(), new Date(now.getTime() + SESSION_TTL_MS).toISOString());
+  db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at, session_id, ip, user_agent, last_seen_at) VALUES (?,?,?,?,?,?,?,?)')
+    .run(token, userId, now.toISOString(), new Date(now.getTime() + SESSION_TTL_MS).toISOString(), sessionId,
+      String(meta.ip || '').slice(0, 80), String(meta.userAgent || '').slice(0, 300), now.toISOString());
+  // Ended sessions are kept as history for 30 days.
+  const cutoff = new Date(now.getTime() - SESSION_HISTORY_MS).toISOString();
+  db.prepare("DELETE FROM sessions WHERE (ended_at <> '' AND ended_at < ?) OR expires_at < ?").run(cutoff, cutoff);
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (row) audit({ id: row.id, name: row.name, role: row.role, sessionId, ip: meta.ip }, 'session.login', maskEmail(row.email), describeDevice(meta.userAgent));
   return token;
 }
 
 function getSessionUser(token) {
   if (!token) return null;
-  const row = db.prepare('SELECT sessions.expires_at AS expires_at, users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token = ?').get(token);
-  if (!row) return null;
-  if (new Date(row.expires_at).getTime() < Date.now()) { deleteSession(token); return null; }
+  const row = db.prepare(`SELECT sessions.expires_at AS s_expires_at, sessions.session_id AS s_session_id, sessions.created_at AS s_created_at,
+      sessions.last_seen_at AS s_last_seen_at, sessions.ended_at AS s_ended_at, sessions.ip AS s_ip, users.*
+    FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token = ?`).get(token);
+  if (!row || row.s_ended_at) return null;
+  const now = Date.now();
+  const end = reason => {
+    db.prepare("UPDATE sessions SET ended_at = ?, end_reason = ? WHERE token = ? AND ended_at = ''").run(new Date(now).toISOString(), reason, token);
+    return null;
+  };
+  if (new Date(row.s_expires_at).getTime() < now) return end('expired');
+  const lastSeen = new Date(row.s_last_seen_at || row.s_created_at).getTime();
+  if (now - lastSeen > SESSION_IDLE_MS) return end('idle');
   // Suspension takes effect on the very next request, not when the session expires.
-  if (row.status === 'suspended') { deleteSession(token); return null; }
-  return publicUser(row);
+  if (row.status === 'suspended') return end('suspended');
+  if (now - lastSeen > LAST_SEEN_WRITE_MS) db.prepare('UPDATE sessions SET last_seen_at = ? WHERE token = ?').run(new Date(now).toISOString(), token);
+  const user = publicUser(row);
+  user.sessionId = row.s_session_id;
+  // Kept off the JSON sent to the browser, but available for the activity log.
+  Object.defineProperty(user, 'ip', { value: row.s_ip, enumerable: false });
+  return user;
 }
 
+// Logging out ends the session; the row stays as history.
 function deleteSession(token) {
   if (!token) return;
-  db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  const user = getSessionUser(token);
+  db.prepare("UPDATE sessions SET ended_at = ?, end_reason = 'logout' WHERE token = ? AND ended_at = ''").run(new Date().toISOString(), token);
+  if (user) audit(user, 'session.logout', '', '');
+}
+
+function endUserSessions(userId, reason) {
+  db.prepare("UPDATE sessions SET ended_at = ?, end_reason = ? WHERE user_id = ? AND ended_at = ''").run(new Date().toISOString(), reason, userId);
+}
+
+// Sessions that went idle or expired without another request are closed off here, with
+// the time they actually ended, so lists never show someone as signed in who is not.
+function sweepSessions() {
+  const now = Date.now();
+  db.prepare("SELECT token, created_at, expires_at, last_seen_at FROM sessions WHERE ended_at = ''").all().forEach(r => {
+    const expires = new Date(r.expires_at).getTime();
+    const lastSeen = new Date(r.last_seen_at || r.created_at).getTime();
+    if (expires < now) {
+      db.prepare("UPDATE sessions SET ended_at = ?, end_reason = 'expired' WHERE token = ?").run(new Date(expires).toISOString(), r.token);
+    } else if (now - lastSeen > SESSION_IDLE_MS) {
+      db.prepare("UPDATE sessions SET ended_at = ?, end_reason = 'idle' WHERE token = ?").run(new Date(lastSeen + SESSION_IDLE_MS).toISOString(), r.token);
+    }
+  });
+}
+
+const SESSION_SELECT = 'SELECT sessions.*, users.name AS user_name, users.role AS user_role, users.email AS user_email FROM sessions JOIN users ON users.id = sessions.user_id';
+
+// Never includes the token.
+function sessionView(row, currentSessionId) {
+  return {
+    sessionId: row.session_id, userId: row.user_id, userName: row.user_name, role: row.user_role,
+    device: describeDevice(row.user_agent), ip: maskIp(row.ip), startedAt: row.created_at,
+    lastSeenAt: row.last_seen_at || row.created_at, endedAt: row.ended_at || '', endReason: row.end_reason || '',
+    current: !!currentSessionId && row.session_id === currentSessionId
+  };
+}
+
+const idleMinutes = () => Math.round(SESSION_IDLE_MS / 60000);
+
+function listMySessions(user) {
+  sweepSessions();
+  const sessions = db.prepare(`${SESSION_SELECT} WHERE sessions.user_id = ? AND sessions.ended_at = '' ORDER BY sessions.last_seen_at DESC`)
+    .all(user.id).map(r => sessionView(r, user.sessionId));
+  return { sessions, idleMinutes: idleMinutes() };
+}
+
+function endMySession(user, sessionId) {
+  const row = db.prepare("SELECT * FROM sessions WHERE session_id = ? AND user_id = ? AND ended_at = ''").get(String(sessionId), user.id);
+  if (!row) throw httpError(404, 'err.sessionNotFound', 'ไม่พบเซสชันนี้ หรือสิ้นสุดไปแล้ว');
+  if (row.session_id === user.sessionId) throw httpError(400, 'err.revokeOwn', 'ถ้าต้องการออกจากเซสชันนี้ ให้ใช้เมนูออกจากระบบ');
+  db.prepare("UPDATE sessions SET ended_at = ?, end_reason = 'signed_out_elsewhere' WHERE token = ?").run(new Date().toISOString(), row.token);
+  audit(user, 'session.end_other', row.session_id, describeDevice(row.user_agent));
+}
+
+function endOtherSessions(user) {
+  const result = db.prepare("UPDATE sessions SET ended_at = ?, end_reason = 'signed_out_elsewhere' WHERE user_id = ? AND session_id <> ? AND ended_at = ''")
+    .run(new Date().toISOString(), user.id, user.sessionId || '');
+  if (result.changes) audit(user, 'session.end_other', 'all', String(result.changes));
+  return { ended: Number(result.changes) };
+}
+
+function listSessions(actor) {
+  assertCan(actor, 'activity.view');
+  sweepSessions();
+  const active = db.prepare(`${SESSION_SELECT} WHERE sessions.ended_at = '' ORDER BY sessions.last_seen_at DESC LIMIT 200`).all().map(r => sessionView(r, actor.sessionId));
+  const recent = db.prepare(`${SESSION_SELECT} WHERE sessions.ended_at <> '' ORDER BY sessions.ended_at DESC LIMIT 50`).all().map(r => sessionView(r, actor.sessionId));
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60000).toISOString();
+  return {
+    active, recent, idleMinutes: idleMinutes(),
+    summary: { active: active.length, onlineNow: active.filter(s => s.lastSeenAt >= fiveMinutesAgo).length, users: new Set(active.map(s => s.userId)).size }
+  };
+}
+
+function revokeSession(sessionId, actor) {
+  assertCan(actor, 'session.manage');
+  const row = db.prepare(`${SESSION_SELECT} WHERE sessions.session_id = ? AND sessions.ended_at = ''`).get(String(sessionId));
+  if (!row) throw httpError(404, 'err.sessionNotFound', 'ไม่พบเซสชันนี้ หรือสิ้นสุดไปแล้ว');
+  if (row.session_id === actor.sessionId) throw httpError(400, 'err.revokeOwn', 'ถ้าต้องการออกจากเซสชันของตัวเอง ให้ใช้เมนูออกจากระบบ');
+  db.prepare("UPDATE sessions SET ended_at = ?, end_reason = 'revoked' WHERE token = ?").run(new Date().toISOString(), row.token);
+  audit(actor, 'session.revoke', maskEmail(row.user_email), `${row.user_name} · ${describeDevice(row.user_agent)}`);
+}
+
+// --- Activity log ----------------------------------------------------------------------
+// Everything a person does while signed in is written through audit(); page views come
+// from the browser. These are fixed SQL fragments, never built from request input.
+const ACTIVITY_CATEGORY_SQL = {
+  session: "action LIKE 'session.%'",
+  inspection: "(action LIKE 'inspection.%' OR action LIKE 'media.%' OR action IN ('data.correct', 'staff.notify', 'action.update'))",
+  alert: "action LIKE 'alert.%'",
+  admin: "(action LIKE 'user.%' OR action LIKE 'role.%' OR action LIKE 'venue.%' OR action LIKE 'equipment.%' OR action LIKE 'system.%')",
+  page: "action = 'page.view'",
+  other: "action LIKE 'feedback.%'"
+};
+const TRACKED_VIEWS = ['dashboard', 'venues', 'inspection', 'result', 'approvals', 'history', 'actions', 'ai-monitor',
+  'alerts', 'sensors', 'equipment', 'standards', 'testing', 'feedback', 'report', 'admin'];
+
+function recordPageView(user, view) {
+  if (!TRACKED_VIEWS.includes(view)) throw httpError(400, 'err.unknownView', 'ไม่รู้จักหน้านี้');
+  const last = db.prepare("SELECT target, created_at FROM audit_log WHERE session_id = ? AND action = 'page.view' ORDER BY id DESC LIMIT 1").get(user.sessionId || '');
+  // Opening the same page again within half a minute is one visit, not several.
+  if (last && last.target === view && Date.now() - new Date(last.created_at).getTime() < 30000) return { recorded: false };
+  audit(user, 'page.view', view, '');
+  db.prepare("DELETE FROM audit_log WHERE action = 'page.view' AND id <= (SELECT MAX(id) FROM audit_log) - 20000").run();
+  return { recorded: true };
+}
+
+function getActivity(actor, query = {}) {
+  assertCan(actor, 'activity.view');
+  const hours = [24, 168, 720].includes(Number(query.hours)) ? Number(query.hours) : 168;
+  const where = ['created_at >= ?'];
+  const args = [new Date(Date.now() - hours * 3600000).toISOString()];
+  if (query.userId) { where.push('actor_id = ?'); args.push(String(query.userId)); }
+  if (query.sessionId) { where.push('session_id = ?'); args.push(String(query.sessionId)); }
+  if (ACTIVITY_CATEGORY_SQL[query.category]) where.push(ACTIVITY_CATEGORY_SQL[query.category]);
+  if (query.hidePages === '1') where.push("action <> 'page.view'");
+  if (query.q) {
+    where.push('(actor_name LIKE ? OR action LIKE ? OR target LIKE ? OR detail LIKE ?)');
+    const like = '%' + String(query.q).slice(0, 80) + '%';
+    args.push(like, like, like, like);
+  }
+  const rows = db.prepare(`SELECT * FROM audit_log WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT 300`).all(...args).map(r => ({
+    id: r.id, actorId: r.actor_id, actorName: r.actor_name, role: r.actor_role, action: r.action,
+    target: r.target, detail: r.detail, sessionId: r.session_id, ip: maskIp(r.ip), createdAt: r.created_at
+  }));
+  const users = db.prepare('SELECT id, name, role FROM users ORDER BY name').all().map(u => ({ id: u.id, name: u.name, role: u.role }));
+  return { rows, users, hours };
 }
 
 // --- Audit trail and login log -------------------------------------------------------
 function audit(actor, action, target, detail) {
-  db.prepare('INSERT INTO audit_log (actor_id, actor_name, action, target, detail, created_at) VALUES (?,?,?,?,?,?)')
-    .run((actor && actor.id) || '', (actor && actor.name) || '', action,
+  const a = actor || {};
+  db.prepare('INSERT INTO audit_log (actor_id, actor_name, actor_role, session_id, ip, action, target, detail, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(a.id || '', a.name || '', a.role || '', a.sessionId || '', String(a.ip || '').slice(0, 80), action,
       String(target || '').slice(0, 200), String(detail || '').slice(0, 1000), new Date().toISOString());
 }
 
@@ -1323,7 +1536,7 @@ function adminUserView(row) {
     id: row.id, name: row.name, email: maskEmail(row.email), username: row.username || '', role: row.role,
     branch: row.branch || '', status: row.status || 'active', createdAt: row.created_at, lastLoginAt: row.last_login_at || '',
     venues: db.prepare('SELECT venue_id FROM venue_assignments WHERE user_id = ? ORDER BY venue_id').all(row.id).map(r => r.venue_id),
-    activeSessions: db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND expires_at > ?').get(row.id, new Date().toISOString()).n,
+    activeSessions: db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND ended_at = '' AND expires_at > ?").get(row.id, new Date().toISOString()).n,
     isDemo: DEMO_EMAILS.includes(row.email)
   };
 }
@@ -1392,7 +1605,8 @@ function adminSaveUser(id, body, actor) {
       db.prepare('UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?').run(hash, salt, userId);
     }
     // Suspending an account, or giving it a new password, signs it out everywhere.
-    if (status === 'suspended' || password) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    if (status === 'suspended') endUserSessions(userId, 'suspended');
+    else if (password) endUserSessions(userId, 'password_changed');
   } else {
     const { hash, salt } = hashPassword(password);
     db.prepare('INSERT INTO users (id, name, email, username, password_hash, password_salt, role, created_at, branch, status) VALUES (?,?,?,?,?,?,?,?,?,?)')
@@ -1555,6 +1769,9 @@ function saveVenue(id, body, actor) {
   if (!location) throw httpError(400, 'err.venueLocation', 'กรุณาระบุที่ตั้ง');
   if (!BRANCHES.includes(branch)) throw httpError(400, 'err.venueBranch', 'สาขาไม่ถูกต้อง');
   if (!Number.isInteger(tables) || tables < 1 || tables > 500) throw httpError(400, 'err.venueTables', 'จำนวนโต๊ะต้องเป็นจำนวนเต็ม 1-500');
+  // Choosing who is responsible for a place decides who can inspect it, which is an
+  // account decision, so it also needs user-management rights.
+  if (Array.isArray(body.assignees)) assertCan(actor, 'user.manage');
 
   let venueId = id;
   if (existing) {
@@ -1566,6 +1783,15 @@ function saveVenue(id, body, actor) {
     venueId = 'VEN-' + String(highest + 1).padStart(3, '0');
     db.prepare('INSERT INTO venues (id, name, type, location, location_en, branch, tables_count, last_inspected_date) VALUES (?,?,?,?,?,?,?,NULL)')
       .run(venueId, name, type, location, locationEn, branch, tables);
+  }
+  if (Array.isArray(body.assignees)) {
+    // Staff and inspectors only: supervisors see their whole branch already. The shared
+    // demo accounts can be given a new place but never lose one, so the demo keeps working.
+    const eligible = new Set(db.prepare("SELECT id FROM users WHERE role IN ('user', 'inspector')").all().map(r => r.id));
+    const demoIds = db.prepare(`SELECT id FROM users WHERE email IN (${DEMO_EMAILS.map(() => '?').join(',')})`).all(...DEMO_EMAILS).map(r => r.id);
+    db.prepare(`DELETE FROM venue_assignments WHERE venue_id = ? AND user_id NOT IN (${demoIds.map(() => '?').join(',') || "''"})`).run(venueId, ...demoIds);
+    const assign = db.prepare('INSERT OR IGNORE INTO venue_assignments (user_id, venue_id) VALUES (?,?)');
+    body.assignees.filter(id => eligible.has(id)).forEach(id => assign.run(id, venueId));
   }
   audit(actor, existing ? 'venue.update' : 'venue.create', venueId, name);
   return allVenues().find(v => v.id === venueId);
@@ -1620,14 +1846,15 @@ function getSecurityOverview(actor) {
       successfulLogins24h: count('SELECT COUNT(*) AS n FROM login_events WHERE success = 1 AND created_at >= ?', since),
       lockouts24h: count("SELECT COUNT(*) AS n FROM login_events WHERE reason = 'locked' AND created_at >= ?", since),
       suspendedAttempts24h: count("SELECT COUNT(*) AS n FROM login_events WHERE reason = 'suspended' AND created_at >= ?", since),
-      activeSessions: count('SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?', now),
+      activeSessions: count("SELECT COUNT(*) AS n FROM sessions WHERE ended_at = '' AND expires_at > ?", now),
       suspendedAccounts: count("SELECT COUNT(*) AS n FROM users WHERE status = 'suspended'")
     },
     suspicious: suspiciousLogins(since),
     loginEvents: db.prepare('SELECT * FROM login_events ORDER BY id DESC LIMIT 50').all().map(r => ({
       id: r.id, email: maskEmail(r.email), ip: maskIp(r.ip), success: !!r.success, reason: r.reason, createdAt: r.created_at
     })),
-    audit: db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT 50').all().map(r => ({
+    // Changes only; routine logins and page views live in the activity log.
+    audit: db.prepare("SELECT * FROM audit_log WHERE action NOT IN ('page.view', 'session.login', 'session.logout') ORDER BY id DESC LIMIT 50").all().map(r => ({
       id: r.id, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail, createdAt: r.created_at
     }))
   };
@@ -1805,6 +2032,7 @@ module.exports = {
   getPermissionMatrix, setRolePermissions, resetPermissions,
   correctInspection, saveVenue, deleteVenue,
   recordLoginEvent, getSecurityOverview, createBackup, listBackups, getBackup, restoreBackup,
+  listMySessions, endMySession, endOtherSessions, listSessions, revokeSession, recordPageView, getActivity,
   can, capabilitiesFor, visibleVenueIds, BRANCHES, CAPABILITIES, DEFAULT_CAPABILITIES, ALL_CAPABILITIES,
   ROLES, SELF_SIGNUP_ROLES
 };

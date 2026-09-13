@@ -260,6 +260,7 @@
 
   async function enterApp(user) {
     state.user = user;
+    lastLoggedView = '';
     $('#login-screen').hidden = true;
     $('#app-shell').hidden = false;
     applyUserChrome(user);
@@ -342,22 +343,68 @@
   async function logout() {
     setUserMenuOpen(false);
     try { await Api.logout(); } catch (err) { console.error(err); }
+    showLoginScreen(t('auth.loggedOut'));
+  }
+
+  // Also used when the server reports that the session has ended (idle, expired or
+  // signed out by an administrator), so the person sees why they are back here.
+  function showLoginScreen(notice) {
     state.user = null;
     state.data = null;
     state.currentInspection = null;
+    lastLoggedView = '';
+    if ($('#detail-dialog').open) $('#detail-dialog').close();
     $('#app-shell').hidden = true;
     $('#login-screen').hidden = false;
     // Land back on a clean login form, not whatever was last typed or shown.
     switchAuthTab('login');
     hideFormError($('#login-error'));
-    showFormNotice($('#login-notice'), t('auth.loggedOut'));
+    showFormNotice($('#login-notice'), notice);
     $('#login-password').value = '';
+  }
+
+  // "Signed-in devices": every session of this account, with a way to end the others.
+  async function openMySessions() {
+    setUserMenuOpen(false);
+    let data;
+    try { data = await Api.listMySessions(); } catch (err) { toast(t('common.error') + errorText(err)); return; }
+    const others = data.sessions.filter(s => !s.current);
+    const row = s => `<div class="session-row${s.current ? ' is-current' : ''}">
+      <div><b>${escapeHtml(s.device || t('sess.unknownDevice'))}</b>${s.current ? ` <span class="stage-badge stage-approved">${escapeHtml(t('sess.current'))}</span>` : ''}
+        <small>IP ${escapeHtml(s.ip || '-')} · ${escapeHtml(t('sess.started'))} ${formatDate(s.startedAt)} · ${escapeHtml(t('sess.lastSeen'))} ${formatDate(s.lastSeenAt)}</small></div>
+      ${s.current ? '' : `<button type="button" class="btn btn-danger-outline" data-end-session="${escapeHtml(s.sessionId)}">${escapeHtml(t('sess.end'))}</button>`}
+    </div>`;
+    $('#dialog-content').innerHTML = `<span class="eyebrow">SESSIONS</span><h2>${escapeHtml(t('sess.myTitle'))}</h2>
+      <p class="admin-note">${escapeHtml(t('sess.mySub', { idle: data.idleMinutes }))}</p>
+      <div class="session-list">${data.sessions.map(row).join('')}</div>
+      ${others.length ? `<div class="result-actions"><button type="button" class="btn btn-secondary" id="end-other-sessions">${escapeHtml(t('sess.endOthers'))}</button></div>` : ''}`;
+    if (!$('#detail-dialog').open) $('#detail-dialog').showModal();
+    $$('[data-end-session]').forEach(b => { b.onclick = () => withLoading(b, null, async () => {
+      await Api.endMySession(b.dataset.endSession);
+      toast(t('sess.endedToast'));
+      await openMySessions();
+    }); });
+    const endAll = $('#end-other-sessions');
+    if (endAll) endAll.onclick = () => withLoading(endAll, null, async () => {
+      await Api.endOtherSessions();
+      toast(t('sess.endedToast'));
+      await openMySessions();
+    });
   }
 
   function switchAuthTab(tab) {
     $$('.tab-btn[data-auth-tab]').forEach(b => { const active = b.dataset.authTab === tab; b.classList.toggle('active', active); b.setAttribute('aria-selected', active ? 'true' : 'false'); });
     $('#login-form').hidden = tab !== 'login';
     $('#signup-form').hidden = tab !== 'signup';
+  }
+
+  // Page visits go to the activity log so an administrator can follow what someone did
+  // during a session. Best effort: a failed log call never gets in the person's way.
+  let lastLoggedView = '';
+  function logView(name) {
+    if (!state.user || name === lastLoggedView) return;
+    lastLoggedView = name;
+    Api.logView(name).catch(() => {});
   }
 
   function showView(name) {
@@ -377,6 +424,7 @@
     if (name === 'testing') renderTesting();
     if (name === 'feedback') renderFeedback();
     if (extraViews[name]) extraViews[name].render();
+    logView(name);
     $('.sidebar').classList.remove('open');
   }
 
@@ -643,11 +691,20 @@
       </div>`;
   }
 
+  // Start buttons for people who inspect; an edit link for people who manage places.
+  function venueCardActions(v) {
+    const start = can('inspection.submit')
+      ? ['daily', 'monthly', 'yearly'].map(f => `<button class="text-button" data-start="${v.id}" data-freq="${f}">${t('freq.' + f)}</button>`).join('')
+      : '';
+    const manage = can('venue.manage') ? `<button class="text-button" data-venue-manage="${v.id}">${t('venues.editPlace')}</button>` : '';
+    return start || manage ? `<div class="freq-btns">${start}${manage}</div>` : '';
+  }
+
   function renderVenues() {
     const term = ($('#venue-search')?.value || '').trim().toLowerCase();
     const type = $('#venue-type-filter')?.value || 'all';
     const rows = state.data.venues.filter(v => (type === 'all' || v.type === type) && `${v.name} ${v.location} ${v.locationEn} ${v.type}`.toLowerCase().includes(term));
-    $('#venue-grid').innerHTML = rows.map(v => `<article class="venue-card"><div class="venue-cover"><span>${v.type}</span><b>${v.icon}</b></div><div class="venue-body"><h3>${escapeHtml(v.name)}</h3><p>⌖ ${escapeHtml(venueLocation(v))} · ${v.tablesCount} ${t('venues.tables')}</p><div class="venue-meta"><span>${t('venues.lastInspected')} ${v.lastInspectedDate ? formatDate(v.lastInspectedDate) : t('venues.never')}</span></div><div class="freq-btns"><button class="text-button" data-start="${v.id}" data-freq="daily">${t('freq.daily')}</button><button class="text-button" data-start="${v.id}" data-freq="monthly">${t('freq.monthly')}</button><button class="text-button" data-start="${v.id}" data-freq="yearly">${t('freq.yearly')}</button></div></div></article>`).join('') || `<div class="empty-state"><b>${t('venues.notFound')}</b>${t('venues.notFoundSub')}</div>`;
+    $('#venue-grid').innerHTML = rows.map(v => `<article class="venue-card"><div class="venue-cover"><span>${v.type}</span><b>${v.icon}</b></div><div class="venue-body"><h3>${escapeHtml(v.name)}</h3><p>⌖ ${escapeHtml(venueLocation(v))} · ${v.tablesCount} ${t('venues.tables')}</p><div class="venue-meta"><span>${t('venues.lastInspected')} ${v.lastInspectedDate ? formatDate(v.lastInspectedDate) : t('venues.never')}</span></div>${venueCardActions(v)}</div></article>`).join('') || `<div class="empty-state"><b>${t('venues.notFound')}</b>${t('venues.notFoundSub')}</div>`;
     bindDynamicButtons();
   }
 
@@ -1317,6 +1374,9 @@
     $$('[data-detail]').forEach(btn => btn.onclick = () => openDetail(btn.dataset.detail));
     $$('[data-report]').forEach(btn => btn.onclick = () => openReport(btn.dataset.report));
     $$('[data-edit]').forEach(btn => btn.onclick = () => editInspection(btn.dataset.edit));
+    $$('[data-venue-manage]').forEach(btn => btn.onclick = () => {
+      if (extraViews.admin && extraViews.admin.openVenueForm) extraViews.admin.openVenueForm(btn.dataset.venueManage);
+    });
     $$('[data-correct]').forEach(btn => btn.onclick = () => {
       if ($('#detail-dialog').open) $('#detail-dialog').close();
       if (extraViews.admin && extraViews.admin.openCorrection) extraViews.admin.openCorrection(btn.dataset.correct);
@@ -1371,6 +1431,13 @@
       if (e.key === 'Escape' && userMenuOpen()) { setUserMenuOpen(false); $('#user-menu').focus(); }
     });
     $('#logout-button').addEventListener('click', logout);
+    $('#my-sessions-button').addEventListener('click', openMySessions);
+    $('#add-venue-button').addEventListener('click', () => {
+      if (extraViews.admin && extraViews.admin.openVenueForm) extraViews.admin.openVenueForm(null);
+    });
+    window.addEventListener('safecheck:unauthorized', () => {
+      if (state.user) showLoginScreen(t('auth.sessionEnded'));
+    });
     $('#reset-data').addEventListener('click', resetData);
     $('#mobile-menu').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
     $('#venue-search').addEventListener('input', renderVenues); $('#venue-type-filter').addEventListener('change', renderVenues);

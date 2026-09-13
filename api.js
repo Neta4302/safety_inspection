@@ -20,6 +20,11 @@
       if (payload && payload.code) err.code = payload.code;
       if (payload) err.data = payload;
       err.status = res.status;
+      // Signed in a moment ago but refused now: the session ended (idle, expired or
+      // revoked). The app listens for this and returns to the login screen with a reason.
+      if (res.status === 401 && !/^\/api\/(login|me|logout)$/.test(path) && root && typeof root.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        root.dispatchEvent(new CustomEvent('safecheck:unauthorized', { detail: payload }));
+      }
       throw err;
     }
     if (res.status === 204) return null;
@@ -51,6 +56,12 @@
     deleteMedia: id => request(`/api/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     mediaUrl: id => `/api/media/${encodeURIComponent(id)}`,
 
+    // Sessions and activity
+    listMySessions: () => request('/api/sessions'),
+    endMySession: sessionId => request(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+    endOtherSessions: () => request('/api/sessions/end-others', { method: 'POST' }),
+    logView: view => request('/api/activity/view', { method: 'POST', body: JSON.stringify({ view }) }),
+
     // Approval workflow
     reviewInspection: (id, decision, note) =>
       request(`/api/inspections/${encodeURIComponent(id)}/review`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
@@ -79,7 +90,10 @@
       listBackups: () => request('/api/admin/backups'),
       createBackup: label => request('/api/admin/backups', { method: 'POST', body: JSON.stringify({ label }) }),
       backupUrl: id => `/api/admin/backups/${encodeURIComponent(id)}`,
-      restore: payload => request('/api/admin/restore', { method: 'POST', body: JSON.stringify(payload) })
+      restore: payload => request('/api/admin/restore', { method: 'POST', body: JSON.stringify(payload) }),
+      sessions: () => request('/api/admin/sessions'),
+      revokeSession: sessionId => request(`/api/admin/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+      activity: params => request('/api/admin/activity?' + new URLSearchParams(params || {}).toString())
     }
   };
 

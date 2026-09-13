@@ -108,7 +108,7 @@
       <nav class="main-nav" data-i18n-aria="nav.aria">
         <small class="nav-section" data-i18n="nav.section.inspection">ตรวจสอบโดยเจ้าหน้าที่</small>
         <button data-view="dashboard" class="active"><span>▦</span><span data-i18n="nav.dashboard">ภาพรวม</span></button>
-        <button data-view="venues" data-cap-any="inspection.submit"><span>⌖</span><span data-i18n="nav.venues">เริ่มการตรวจ</span></button>
+        <button data-view="venues" data-cap-any="inspection.submit,venue.manage"><span>⌖</span><span data-i18n="nav.venues">เริ่มการตรวจ</span></button>
         <button data-view="approvals"><span>✔</span><span data-i18n="nav.approvals">ตรวจสอบและอนุมัติ</span> <em id="nav-approval-count" hidden>0</em></button>
         <button data-view="history"><span>◷</span><span data-i18n="nav.history">ประวัติการตรวจ</span></button>
         <button data-view="actions"><span>!</span><span data-i18n="nav.actions">ติดตามการแก้ไข</span> <em id="nav-action-count">0</em></button>
@@ -117,8 +117,8 @@
         <button data-view="alerts"><span>⚠</span><span data-i18n="nav.alerts">การแจ้งเตือน Safety</span> <em id="nav-alert-count">0</em></button>
         <button data-view="sensors"><span>◈</span><span data-i18n="nav.sensors">เซ็นเซอร์ &amp; อุปกรณ์</span></button>
         <button data-view="equipment"><span>▣</span><span data-i18n="nav.equipment">ทะเบียนอุปกรณ์ &amp; อายุการใช้งาน</span></button>
-        <small class="nav-section" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,system.backup" data-i18n="nav.section.admin">ผู้ดูแลระบบ</small>
-        <button data-view="admin" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,system.backup"><span>⚙</span><span data-i18n="nav.admin">จัดการระบบ</span> <em id="nav-admin-count" hidden>0</em></button>
+        <small class="nav-section" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,activity.view,session.manage,system.backup" data-i18n="nav.section.admin">ผู้ดูแลระบบ</small>
+        <button data-view="admin" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,activity.view,session.manage,system.backup"><span>⚙</span><span data-i18n="nav.admin">จัดการระบบ</span> <em id="nav-admin-count" hidden>0</em></button>
         <small class="nav-section" data-i18n="nav.section.docs">เอกสารระบบ</small>
         <button data-view="standards"><span>§</span><span data-i18n="nav.standards">มาตรฐานความปลอดภัย</span></button>
         <button data-view="testing"><span>✓</span><span data-i18n="nav.testing">การทดสอบระบบ</span></button>
@@ -158,6 +158,9 @@
                 </div>
               </div>
               <span id="role-badge" class="role-badge"></span>
+              <button id="my-sessions-button" class="user-dropdown-item" role="menuitem" type="button">
+                <span aria-hidden="true">🖥</span> <span data-i18n="sess.myMenu">อุปกรณ์ที่เข้าสู่ระบบ</span>
+              </button>
               <button id="logout-button" class="user-dropdown-item" role="menuitem" type="button">
                 <span aria-hidden="true">↪</span> <span data-i18n="shell.logout">ออกจากระบบ</span>
               </button>
@@ -202,7 +205,7 @@
         </section>
 
         <section id="view-venues" class="view" data-title-key="view.venues">
-          <div class="section-intro"><div><span class="eyebrow" data-i18n="venues.eyebrow">NEW INSPECTION</span><h1 data-i18n="venues.title">เลือกพื้นที่หรือสถานบริการ</h1><p data-i18n="venues.subtitle">เลือกสถานที่และรอบการตรวจเพื่อเริ่ม Checklist</p></div><div class="step-indicator"><b>1</b><span></span><i>2</i><span></span><i>3</i><small><span data-i18n="venues.step1">สถานที่</span>&nbsp;&nbsp;&nbsp;&nbsp;<span data-i18n="venues.step2">ตรวจสอบ</span>&nbsp;&nbsp;&nbsp;&nbsp;<span data-i18n="venues.step3">สรุปผล</span></small></div></div>
+          <div class="section-intro"><div><span class="eyebrow" data-i18n="venues.eyebrow">NEW INSPECTION</span><h1 data-i18n="venues.title">เลือกพื้นที่หรือสถานบริการ</h1><p data-i18n="venues.subtitle">เลือกสถานที่และรอบการตรวจเพื่อเริ่ม Checklist</p></div><button class="btn btn-primary" type="button" id="add-venue-button" data-cap-any="venue.manage" data-i18n="venues.addPlace">+ เพิ่มสถานที่ตรวจ</button><div class="step-indicator" data-cap-any="inspection.submit"><b>1</b><span></span><i>2</i><span></span><i>3</i><small><span data-i18n="venues.step1">สถานที่</span>&nbsp;&nbsp;&nbsp;&nbsp;<span data-i18n="venues.step2">ตรวจสอบ</span>&nbsp;&nbsp;&nbsp;&nbsp;<span data-i18n="venues.step3">สรุปผล</span></small></div></div>
           <div class="filter-row"><input id="venue-search" type="search" data-i18n-placeholder="venues.searchPlaceholder" placeholder="ค้นหาชื่อสถานที่หรือประเภท..."><select id="venue-type-filter"><option value="all" data-i18n="venues.allTypes">ทุกประเภท</option><option value="Restaurant">Restaurant</option><option value="Bar &amp; Pub">Bar &amp; Pub</option><option value="Entertainment">Entertainment</option></select></div>
           <div id="venue-grid" class="venue-grid"></div>
         </section>
@@ -292,6 +295,8 @@
             <button type="button" class="admin-tab" data-admin-tab="data" data-cap-any="data.correct"><span aria-hidden="true">✎</span><span data-i18n="admin.tab.data">แก้ไขข้อมูล</span></button>
             <button type="button" class="admin-tab" data-admin-tab="venues" data-cap-any="venue.manage,equipment.manage"><span aria-hidden="true">🏢</span><span data-i18n="admin.tab.venues">สถานที่และอุปกรณ์</span></button>
             <button type="button" class="admin-tab" data-admin-tab="security" data-cap-any="security.view"><span aria-hidden="true">🛡</span><span data-i18n="admin.tab.security">ความปลอดภัย</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="sessions" data-cap-any="activity.view"><span aria-hidden="true">🖥</span><span data-i18n="admin.tab.sessions">เซสชันที่ใช้งาน</span></button>
+            <button type="button" class="admin-tab" data-admin-tab="activity" data-cap-any="activity.view"><span aria-hidden="true">📜</span><span data-i18n="admin.tab.activity">บันทึกกิจกรรม</span></button>
             <button type="button" class="admin-tab" data-admin-tab="backup" data-cap-any="system.backup"><span aria-hidden="true">💾</span><span data-i18n="admin.tab.backup">สำรองและกู้คืน</span></button>
           </div>
           <div id="admin-content"></div>

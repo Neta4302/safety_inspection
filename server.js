@@ -193,7 +193,7 @@ function sendMedia(req, res, media) {
   res.end(buf);
 }
 
-async function handleApi(req, res, pathname, method) {
+async function handleApi(req, res, pathname, method, url) {
   try {
     // --- Auth routes (public) ---
     // Signup deliberately does NOT start a session — the new account has to be used
@@ -220,7 +220,7 @@ async function handleApi(req, res, pathname, method) {
         const user = db.verifyLogin(identifier, body.password);
         loginAttempts.delete(key);
         db.recordLoginEvent({ email: user.email, userId: user.id, ip, success: true });
-        const token = db.createSession(user.id);
+        const token = db.createSession(user, { ip, userAgent: req.headers['user-agent'] });
         setSessionCookie(req, res, token);
         return sendJson(res, 200, { user });
       } catch (err) {
@@ -255,7 +255,15 @@ async function handleApi(req, res, pathname, method) {
     // Note the two distinct layers: 401 means "not signed in", 403 (thrown from the
     // db layer) means "signed in, but your role or venue scope does not allow this".
     const user = currentUser(req);
-    if (!user) return sendJson(res, 401, { error: 'กรุณาเข้าสู่ระบบ' });
+    if (!user) {
+      // A cookie that no longer maps to a live session means it went idle, expired or was
+      // revoked. Saying so lets the browser tell the person why they were signed out.
+      const hadSession = !!parseCookies(req).sid;
+      if (hadSession) clearSessionCookie(req, res);
+      return sendJson(res, 401, hadSession
+        ? { code: 'err.sessionEnded', error: 'เซสชันสิ้นสุดแล้ว กรุณาเข้าสู่ระบบใหม่' }
+        : { code: 'err.loginRequired', error: 'กรุณาเข้าสู่ระบบ' });
+    }
 
     if (pathname === '/api/bootstrap' && method === 'GET') {
       return sendJson(res, 200, await db.bootstrap(user));
@@ -319,6 +327,34 @@ async function handleApi(req, res, pathname, method) {
     if (pathname === '/api/feedback' && method === 'GET') {
       return sendJson(res, 200, { feedback: await db.getFeedback(user) });
     }
+    // --- Sessions and activity ---
+    if (pathname === '/api/sessions' && method === 'GET') {
+      return sendJson(res, 200, db.listMySessions(user));
+    }
+    if (pathname === '/api/sessions/end-others' && method === 'POST') {
+      return sendJson(res, 200, db.endOtherSessions(user));
+    }
+    const mySessionMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
+    if (mySessionMatch && method === 'DELETE') {
+      db.endMySession(user, decodeURIComponent(mySessionMatch[1]));
+      return sendJson(res, 200, { ok: true });
+    }
+    if (pathname === '/api/activity/view' && method === 'POST') {
+      const body = await readBody(req);
+      return sendJson(res, 200, db.recordPageView(user, body.view));
+    }
+    if (pathname === '/api/admin/sessions' && method === 'GET') {
+      return sendJson(res, 200, db.listSessions(user));
+    }
+    const adminSessionMatch = pathname.match(/^\/api\/admin\/sessions\/([^/]+)$/);
+    if (adminSessionMatch && method === 'DELETE') {
+      db.revokeSession(decodeURIComponent(adminSessionMatch[1]), user);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (pathname === '/api/admin/activity' && method === 'GET') {
+      return sendJson(res, 200, db.getActivity(user, Object.fromEntries(url.searchParams)));
+    }
+
     // --- Approval workflow ---
     const decideMatch = pathname.match(/^\/api\/inspections\/([^/]+)\/(review|approve)$/);
     if (decideMatch && method === 'POST') {
@@ -427,7 +463,7 @@ async function handleApi(req, res, pathname, method) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
-  if (pathname.startsWith('/api/')) { handleApi(req, res, pathname, req.method); return; }
+  if (pathname.startsWith('/api/')) { handleApi(req, res, pathname, req.method, url); return; }
   if (serveStatic(req, res, pathname)) return;
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('Not found');

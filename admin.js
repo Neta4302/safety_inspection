@@ -15,6 +15,8 @@
     { id: 'data', caps: ['data.correct'] },
     { id: 'venues', caps: ['venue.manage', 'equipment.manage'] },
     { id: 'security', caps: ['security.view'] },
+    { id: 'sessions', caps: ['activity.view'] },
+    { id: 'activity', caps: ['activity.view'] },
     { id: 'backup', caps: ['system.backup'] }
   ];
   const BRANCHES = ['BKK-CENTRAL', 'BKK-EAST', 'BKK-NORTH'];
@@ -23,7 +25,7 @@
   const CAP_GROUPS = [
     ['workflow', ['inspection.submit', 'inspection.review', 'inspection.approve', 'staff.notify']],
     ['alerts', ['alert.acknowledge', 'alert.escalate', 'alert.close', 'action.update', 'alert.simulate']],
-    ['admin', ['user.manage', 'role.manage', 'data.correct', 'venue.manage', 'equipment.manage', 'security.view', 'system.backup', 'system.reset']],
+    ['admin', ['user.manage', 'role.manage', 'data.correct', 'venue.manage', 'equipment.manage', 'security.view', 'activity.view', 'session.manage', 'system.backup', 'system.reset']],
     ['other', ['feedback.submit', 'feedback.read']]
   ];
 
@@ -39,6 +41,7 @@
   let venueForm = null;
   let equipmentForm = null;
   let equipmentVenue = 'all';
+  let activityFilter = { userId: '', category: 'all', hours: '168', q: '', hidePages: false, sessionId: '' };
 
   const root = () => $('#admin-content');
   const option = (value, label, selected) => `<option value="${escapeHtml(value)}"${selected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
@@ -66,7 +69,7 @@
     if (!tabs.length) { root().innerHTML = ''; return; }
     if (!tab || !tabs.some(tb => tb.id === tab)) tab = tabs[0].id;
     $$('[data-admin-tab]').forEach(b => b.classList.toggle('active', b.dataset.adminTab === tab));
-    const renderers = { users: renderUsers, permissions: renderPermissions, data: renderData, venues: renderVenues, security: renderSecurity, backup: renderBackup };
+    const renderers = { users: renderUsers, permissions: renderPermissions, data: renderData, venues: renderVenues, security: renderSecurity, sessions: renderSessions, activity: renderActivity, backup: renderBackup };
     await renderers[tab](true);
   }
 
@@ -322,6 +325,7 @@
         <div><label for="vf-branch">${h('admin.users.branch')}</label><select id="vf-branch">${BRANCHES.map(b => option(b, t('branch.' + b), b === (v.branch || BRANCHES[0]))).join('')}</select></div>
         <div><label for="vf-tables">${h('admin.venues.tables')}</label><input id="vf-tables" type="number" min="1" max="500" required value="${v.tablesCount || 10}"></div>
       </div>
+      ${assigneesHtml(v)}
       <div class="form-error" hidden></div>
       <div class="admin-form-actions"><button class="btn btn-primary" type="submit">${h('admin.save')}</button><button class="btn btn-ghost" type="button" data-form-cancel="venue">${h('admin.cancel')}</button></div>
     </form>`;
@@ -344,7 +348,29 @@
     </form>`;
   }
 
-  function renderVenues() {
+  // Who can inspect a place is chosen right where the place is added, so a new place
+  // shows up for the right people without a second trip to the user screen.
+  function assigneesHtml(v) {
+    if (!can('user.manage') || !users.length) return '';
+    const assigned = u => !!v.id && u.venues.includes(v.id);
+    const eligible = users.filter(u => u.role === 'user' || u.role === 'inspector');
+    return `<label>${h('admin.venues.assignees')}</label>
+      <div class="venue-checks">${eligible.map(u => `<label><input type="checkbox" name="assignees" value="${u.id}"${assigned(u) ? ' checked' : ''}${u.isDemo && assigned(u) ? ' disabled' : ''}><span>${escapeHtml(u.name)}</span><small>${escapeHtml(roleLabel(u.role))} · ${escapeHtml(u.branch)}</small></label>`).join('')}</div>
+      <p class="admin-note">${h('admin.venues.assigneesHint')}</p>`;
+  }
+
+  function openVenueForm(id) {
+    tab = 'venues';
+    venueForm = id ? (state.data.venues.find(v => v.id === id) || {}) : {};
+    equipmentForm = null;
+    App.showView('admin');
+    setTimeout(() => scrollTo('#venue-form'), 450);
+  }
+
+  async function renderVenues() {
+    if (venueForm && can('user.manage') && !users.length) {
+      try { users = (await Api.admin.listUsers()).users; } catch (err) { /* form still works without assignees */ }
+    }
     const venues = state.data.venues || [];
     const equipment = (state.data.equipment || []).filter(e => equipmentVenue === 'all' || e.venueId === equipmentVenue);
     const statusClass = s => (s === 'expired' ? 'low' : s === 'expiring_soon' ? 'mid' : '');
@@ -391,7 +417,9 @@
       name: $('#vf-name').value.trim(), type: $('#vf-type').value, location: $('#vf-location').value.trim(),
       locationEn: $('#vf-location-en').value.trim(), branch: $('#vf-branch').value, tablesCount: Number($('#vf-tables').value)
     };
-    return saveForm(form, () => (id ? Api.admin.updateVenue(id, body) : Api.admin.createVenue(body)), () => { venueForm = null; });
+    if ($('#venue-form input[name=assignees]')) body.assignees = $$('#venue-form input[name=assignees]:checked').map(i => i.value);
+    // users[] carries each account's venues, which this save may have changed.
+    return saveForm(form, () => (id ? Api.admin.updateVenue(id, body) : Api.admin.createVenue(body)), () => { venueForm = null; users = []; });
   }
 
   function saveEquipment(form) {
@@ -433,9 +461,106 @@
       <article class="panel">
         ${panelHead('admin.sec.auditTitle', '')}
         <div class="table-wrap"><table><thead><tr><th>${h('admin.sec.col.time')}</th><th>${h('admin.sec.col.actor')}</th><th>${h('admin.sec.col.action')}</th><th>${h('admin.sec.col.target')}</th><th>${h('admin.sec.col.detail')}</th></tr></thead>
-        <tbody>${security.audit.map(a => `<tr><td>${formatDate(a.createdAt)}</td><td>${escapeHtml(a.actorName || '-')}</td><td class="mono">${escapeHtml(a.action)}</td><td class="mono">${escapeHtml(a.target || '-')}</td><td>${escapeHtml(a.detail || '')}</td></tr>`).join('') || none(5)}</tbody></table></div>
+        <tbody>${security.audit.map(a => `<tr><td>${formatDate(a.createdAt)}</td><td>${escapeHtml(a.actorName || '-')}</td><td>${escapeHtml(activityLabel(a.action, a.target))}</td><td class="mono">${escapeHtml(a.target || '-')}</td><td>${escapeHtml(a.detail || '')}</td></tr>`).join('') || none(5)}</tbody></table></div>
       </article>
     </div>`;
+  }
+
+  // --- Sessions ---------------------------------------------------------------------------
+  function durationText(from, to) {
+    const minutes = Math.max(1, Math.round((new Date(to) - new Date(from)) / 60000));
+    if (minutes >= 1440) return t('time.days', { n: Math.floor(minutes / 1440) });
+    if (minutes >= 60) return t('time.hours', { n: Math.floor(minutes / 60) });
+    return t('time.minutes', { n: minutes });
+  }
+  const userCell = s => `<td class="user-cell"><b>${escapeHtml(s.userName)}</b><small>${escapeHtml(App.roleMeta(s.role).label)}</small></td>`;
+
+  async function renderSessions() {
+    showLoading();
+    let data;
+    try { data = await Api.admin.sessions(); } catch (err) { showLoadError(err); return; }
+    const none = cols => `<tr><td colspan="${cols}"><div class="empty-state">${h('admin.sess.none')}</div></td></tr>`;
+    const cards = [['active', data.summary.active], ['online', data.summary.onlineNow], ['users', data.summary.users]];
+    root().innerHTML = `<div class="admin-grid">
+      <article class="panel">
+        <div class="panel-heading"><div><h3>${h('admin.sess.title')}</h3><p>${escapeHtml(t('admin.sess.sub', { idle: data.idleMinutes }))}</p></div><button class="btn btn-secondary" type="button" data-sessions-refresh>${h('admin.sec.refresh')}</button></div>
+        <div class="sec-cards">${cards.map(([key, value]) => `<div class="sec-card"><small>${h('admin.sess.' + key)}</small><strong>${value}</strong></div>`).join('')}</div>
+      </article>
+      <article class="panel">
+        ${panelHead('admin.sess.activeTitle', '')}
+        <div class="table-wrap"><table><thead><tr><th>${h('admin.sess.col.user')}</th><th>${h('admin.sess.col.device')}</th><th>IP</th><th>${h('admin.sess.col.started')}</th><th>${h('admin.sess.col.lastSeen')}</th><th>${h('admin.col.actions')}</th></tr></thead>
+        <tbody>${data.active.map(s => `<tr${s.current ? ' class="row-current"' : ''}>${userCell(s)}<td>${escapeHtml(s.device || '-')}</td><td class="mono">${escapeHtml(s.ip || '-')}</td><td>${formatDate(s.startedAt)}</td><td>${formatDate(s.lastSeenAt)}</td>
+          <td class="row-actions"><button class="text-button" type="button" data-session-activity="${escapeHtml(s.sessionId)}">${h('admin.sess.viewActivity')}</button>
+          ${s.current ? `<span class="stage-badge stage-approved">${h('admin.sess.you')}</span>` : can('session.manage') ? `<button class="text-button danger-link" type="button" data-session-revoke="${escapeHtml(s.sessionId)}" data-name="${escapeHtml(s.userName)}" data-device="${escapeHtml(s.device || '-')}">${h('admin.sess.revoke')}</button>` : ''}</td></tr>`).join('') || none(6)}</tbody></table></div>
+      </article>
+      <article class="panel">
+        ${panelHead('admin.sess.recentTitle', '')}
+        <div class="table-wrap"><table><thead><tr><th>${h('admin.sess.col.user')}</th><th>${h('admin.sess.col.device')}</th><th>${h('admin.sess.col.started')}</th><th>${h('admin.sess.col.ended')}</th><th>${h('admin.sess.col.duration')}</th><th>${h('admin.sess.col.reason')}</th><th></th></tr></thead>
+        <tbody>${data.recent.map(s => `<tr>${userCell(s)}<td>${escapeHtml(s.device || '-')}</td><td>${formatDate(s.startedAt)}</td><td>${formatDate(s.endedAt)}</td><td>${durationText(s.startedAt, s.endedAt)}</td>
+          <td><span class="session-reason reason-${escapeHtml(s.endReason)}">${h('sess.reason.' + s.endReason)}</span></td>
+          <td><button class="text-button" type="button" data-session-activity="${escapeHtml(s.sessionId)}">${h('admin.sess.viewActivity')}</button></td></tr>`).join('') || none(7)}</tbody></table></div>
+      </article>
+    </div>`;
+  }
+
+  // --- Activity log -------------------------------------------------------------------------
+  function activityCategory(action) {
+    if (action === 'page.view') return 'page';
+    if (action.startsWith('session.')) return 'session';
+    if (action.startsWith('alert.')) return 'alert';
+    if (/^(inspection|media)\./.test(action) || ['data.correct', 'staff.notify', 'action.update'].includes(action)) return 'inspection';
+    if (/^(user|role|venue|equipment|system)\./.test(action)) return 'admin';
+    return 'other';
+  }
+
+  function activityLabel(action, target) {
+    if (action === 'page.view') {
+      const section = document.getElementById('view-' + target);
+      return t('actlog.page.view', { page: section ? t(section.dataset.titleKey) : target });
+    }
+    const key = 'actlog.' + action;
+    return t(key) === key ? action : t(key);
+  }
+
+  async function renderActivity() {
+    showLoading();
+    const f = activityFilter;
+    const params = { hours: f.hours };
+    if (f.userId) params.userId = f.userId;
+    if (f.category !== 'all') params.category = f.category;
+    if (f.q) params.q = f.q;
+    if (f.hidePages) params.hidePages = '1';
+    if (f.sessionId) params.sessionId = f.sessionId;
+    let data;
+    try { data = await Api.admin.activity(params); } catch (err) { showLoadError(err); return; }
+    const categories = ['all', 'session', 'inspection', 'alert', 'admin', 'page', 'other'];
+    const detailText = r => [r.action === 'page.view' ? '' : r.target, r.detail].filter(Boolean).join(' · ');
+    root().innerHTML = `<article class="panel">
+      <div class="panel-heading"><div><h3>${h('admin.act.title')}</h3><p>${h('admin.act.sub')}</p></div><button class="btn btn-secondary" type="button" data-activity-refresh>${h('admin.sec.refresh')}</button></div>
+      <div class="activity-filters">
+        <select id="act-user" aria-label="${h('admin.act.col.user')}">${option('', t('admin.act.allUsers'), !f.userId)}${data.users.map(u => option(u.id, `${u.name} (${App.roleMeta(u.role).label})`, f.userId === u.id)).join('')}</select>
+        <select id="act-category" aria-label="${h('admin.act.col.action')}">${categories.map(c => option(c, t('admin.act.cat.' + c), f.category === c)).join('')}</select>
+        <select id="act-hours" aria-label="${h('admin.act.col.time')}">${['24', '168', '720'].map(p => option(p, t('admin.act.period.' + p), f.hours === p)).join('')}</select>
+        <input id="act-q" type="search" value="${escapeHtml(f.q)}" placeholder="${h('admin.act.search')}">
+        <label class="inline-check"><input type="checkbox" id="act-hide-pages"${f.hidePages ? ' checked' : ''}> ${h('admin.act.hidePages')}</label>
+      </div>
+      ${f.sessionId ? `<div class="filter-chip">${escapeHtml(t('admin.act.sessionOnly', { id: f.sessionId.slice(0, 8) }))} <button type="button" data-activity-clear-session aria-label="✕">✕</button></div>` : ''}
+      <p class="admin-note">${escapeHtml(t('admin.act.count', { n: data.rows.length }))}</p>
+      <div class="table-wrap"><table><thead><tr><th>${h('admin.act.col.time')}</th><th>${h('admin.act.col.user')}</th><th>${h('admin.act.col.action')}</th><th>${h('admin.act.col.detail')}</th><th>${h('admin.act.col.session')}</th></tr></thead>
+      <tbody>${data.rows.map(r => `<tr>
+        <td>${formatDate(r.createdAt)}</td>
+        <td class="user-cell"><b>${escapeHtml(r.actorName || '-')}</b><small>${r.role ? escapeHtml(App.roleMeta(r.role).label) : ''}</small></td>
+        <td><span class="act-dot act-${activityCategory(r.action)}"></span>${escapeHtml(activityLabel(r.action, r.target))}</td>
+        <td>${escapeHtml(detailText(r))}</td>
+        <td>${r.sessionId ? `<button type="button" class="session-chip" data-session-activity="${escapeHtml(r.sessionId)}" title="${escapeHtml(r.ip || '')}">${escapeHtml(r.sessionId.slice(0, 8))}</button>` : '-'}</td>
+      </tr>`).join('') || `<tr><td colspan="5"><div class="empty-state">${h('admin.act.none')}</div></td></tr>`}</tbody></table></div>
+    </article>`;
+  }
+
+  function showSessionActivity(sessionId) {
+    activityFilter = { ...activityFilter, sessionId, userId: '', category: 'all', hidePages: false, q: '', hours: '720' };
+    tab = 'activity';
+    render();
   }
 
   // --- Backup and restore ----------------------------------------------------------------
@@ -533,6 +658,18 @@
       });
     }
     else if ('secRefresh' in d) renderSecurity();
+    else if ('sessionsRefresh' in d) renderSessions();
+    else if ('activityRefresh' in d) renderActivity();
+    else if (d.sessionActivity) showSessionActivity(d.sessionActivity);
+    else if ('activityClearSession' in d) { activityFilter.sessionId = ''; renderActivity(); }
+    else if (d.sessionRevoke) {
+      if (!confirm(t('admin.sess.confirmRevoke', { name: d.name, device: d.device }))) return;
+      await withLoading(el, null, async () => {
+        await Api.admin.revokeSession(d.sessionRevoke);
+        toast(t('admin.sess.revokedToast'));
+        await renderSessions();
+      });
+    }
     else if (d.backupRestore) {
       if (!confirm(t('admin.bak.confirmRestore', { label: d.label }))) return;
       restore(el, { backupId: d.backupRestore });
@@ -570,6 +707,12 @@
     const el = e.target;
     if (el.id === 'admin-user-role') { userRole = el.value; renderUserTable(); }
     if (el.id === 'admin-eq-venue') { equipmentVenue = el.value; renderVenues(); }
+    if (el.id === 'act-user') { activityFilter.userId = el.value; renderActivity(); }
+    if (el.id === 'act-category') { activityFilter.category = el.value; renderActivity(); }
+    if (el.id === 'act-hours') { activityFilter.hours = el.value; renderActivity(); }
+    if (el.id === 'act-hide-pages') { activityFilter.hidePages = el.checked; renderActivity(); }
+    // A search box fires "change" on Enter or when it loses focus, not on every key.
+    if (el.id === 'act-q') { activityFilter.q = el.value.trim(); renderActivity(); }
     if (el.id === 'uf-role') {
       $('#uf-venues').hidden = !(el.value === 'user' || el.value === 'inspector');
       $('#uf-role-help').textContent = t('admin.users.roleHelp.' + el.value);
@@ -595,5 +738,5 @@
     container.addEventListener('change', onChange);
   }
 
-  App.registerView('admin', { render, bind, openCorrection });
+  App.registerView('admin', { render, bind, openCorrection, openVenueForm });
 })();
