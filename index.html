@@ -21,17 +21,12 @@
         <h1 data-i18n-html="hero.title">ตรวจความปลอดภัย<br>ครบถ้วน รวดเร็ว ติดตามได้</h1>
         <p data-i18n="hero.subtitle">เปลี่ยนกระบวนการตรวจแบบกระดาษให้เป็น Checklist ดิจิทัล พร้อมหลักฐานภาพ คะแนนอัตโนมัติ และ Dashboard</p>
       </div>
-      <div class="hero-features" data-i18n-aria="hero.featuresAria">
-        <article><span>01</span><b data-i18n="hero.f1b">Daily/Monthly/Yearly</b><small data-i18n="hero.f1s">Checklist แยกตามรอบตรวจ</small></article>
-        <article><span>02</span><b data-i18n="hero.f2b">Evidence &amp; Score</b><small data-i18n="hero.f2s">บันทึกภาพและคำนวณผล</small></article>
-        <article><span>03</span><b data-i18n="hero.f3b">Follow-up</b><small data-i18n="hero.f3s">ติดตามรายการที่ไม่ผ่าน</small></article>
-      </div>
     </section>
 
     <section class="login-panel">
       <div class="login-card">
         <div class="login-card-top">
-          <span class="status-pill"><i></i> <span data-i18n="auth.statusPill">เชื่อมต่อฐานข้อมูลพร้อมใช้งาน</span></span>
+          <span></span>
           <button type="button" class="lang-toggle" data-lang-toggle data-i18n="lang.switch" data-i18n-aria="lang.switchAria">EN</button>
         </div>
         <div class="tab-row" role="tablist">
@@ -41,7 +36,6 @@
 
         <form id="login-form" class="auth-form">
           <h2 data-i18n="auth.loginTitle">เข้าสู่ระบบ</h2>
-          <p data-i18n="auth.loginSubtitle">ใช้บัญชีที่สมัครไว้ หรือบัญชีทดลองด้านล่าง</p>
           <div class="form-notice" id="login-notice" hidden></div>
           <div class="form-error" id="login-error" hidden></div>
           <label for="login-email" data-i18n="auth.identifier">อีเมลหรือชื่อผู้ใช้</label>
@@ -53,7 +47,6 @@
 
         <form id="signup-form" class="auth-form" hidden>
           <h2 data-i18n="auth.signupTitle">สมัครสมาชิก</h2>
-          <p data-i18n="auth.signupSubtitle">สร้างบัญชีใหม่เพื่อเริ่มใช้งานระบบ</p>
           <div class="form-error" id="signup-error" hidden></div>
           <label for="signup-name" data-i18n="auth.name">ชื่อ-นามสกุล</label>
           <input id="signup-name" required autocomplete="name" data-i18n-placeholder="auth.namePlaceholder" placeholder="เช่น สมชาย รักษ์ดี">
@@ -77,7 +70,6 @@
             </div>
           </div>
           <small class="field-hint" data-i18n="auth.passwordHint">รหัสผ่านอย่างน้อย 6 ตัวอักษร</small>
-          <small class="field-hint" data-i18n="auth.roleHint">บทบาทระดับหัวหน้างาน ผู้จัดการ และผู้ดูแลระบบ ต้องให้ผู้ดูแลระบบเป็นผู้กำหนดให้ ไม่สามารถสมัครเองได้</small>
           <button class="btn btn-primary btn-block" type="submit"><span data-i18n="auth.signupBtn">สมัครสมาชิก</span> <span>→</span></button>
         </form>
 
@@ -94,46 +86,45 @@
             </div>
           </div>
         </details>
-        <small class="login-note" data-i18n="auth.loginNote">ข้อมูลบัญชีและรหัสผ่านถูกเก็บในฐานข้อมูลของระบบนี้เท่านั้น ไม่ส่งออกอินเทอร์เน็ต</small>
       </div>
     </section>
   </main>
 
   <div id="app-shell" class="app-shell" hidden>
-    <aside class="sidebar">
-      <div class="brand-lockup">
-        <span class="brand-mark" aria-hidden="true">✓</span>
-        <div><strong>SafeCheck</strong><small>Safety Inspection</small></div>
-      </div>
-      <nav class="main-nav" data-i18n-aria="nav.aria">
-        <small class="nav-section" data-i18n="nav.section.inspection">ตรวจสอบโดยเจ้าหน้าที่</small>
-        <button data-view="dashboard" class="active"><span>▦</span><span data-i18n="nav.dashboard">ภาพรวม</span></button>
-        <button data-view="venues" data-cap-any="inspection.submit,venue.manage"><span>⌖</span><span data-i18n="nav.venues">เริ่มการตรวจ</span></button>
-        <button data-view="approvals"><span>✔</span><span data-i18n="nav.approvals">ตรวจสอบและอนุมัติ</span> <em id="nav-approval-count" hidden>0</em></button>
-        <button data-view="history"><span>◷</span><span data-i18n="nav.history">ประวัติการตรวจ</span></button>
-        <button data-view="actions"><span>!</span><span data-i18n="nav.actions">ติดตามการแก้ไข</span> <em id="nav-action-count">0</em></button>
-        <small class="nav-section" data-i18n="nav.section.ai">ตรวจจับด้วย AI &amp; CCTV</small>
-        <button data-view="ai-monitor"><span>◉</span><span data-i18n="nav.aiMonitor">สถานะ AI แบบเรียลไทม์</span></button>
-        <button data-view="alerts"><span>⚠</span><span data-i18n="nav.alerts">การแจ้งเตือน Safety</span> <em id="nav-alert-count">0</em></button>
-        <button data-view="sensors"><span>◈</span><span data-i18n="nav.sensors">เซ็นเซอร์ &amp; อุปกรณ์</span></button>
-        <button data-view="equipment"><span>▣</span><span data-i18n="nav.equipment">ทะเบียนอุปกรณ์ &amp; อายุการใช้งาน</span></button>
-        <small class="nav-section" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,activity.view,session.manage,system.backup" data-i18n="nav.section.admin">ผู้ดูแลระบบ</small>
-        <button data-view="admin" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,activity.view,session.manage,system.backup"><span>⚙</span><span data-i18n="nav.admin">จัดการระบบ</span> <em id="nav-admin-count" hidden>0</em></button>
-        <small class="nav-section" data-i18n="nav.section.docs">เอกสารระบบ</small>
-        <button data-view="standards"><span>§</span><span data-i18n="nav.standards">มาตรฐานความปลอดภัย</span></button>
-        <button data-view="testing"><span>✓</span><span data-i18n="nav.testing">การทดสอบระบบ</span></button>
-        <button data-view="feedback"><span>☆</span><span data-i18n="nav.feedback">ส่งความคิดเห็น (UAT)</span> <em id="nav-feedback-count">0</em></button>
-      </nav>
-      <div class="sidebar-bottom">
-        <button id="reset-data" class="text-button" data-cap="system.reset" data-i18n="shell.reset">↻ รีเซ็ตข้อมูลเดโม</button>
-        <div class="security-note"><span>🗄</span><div><b data-i18n="shell.dbNote">SQLite Database</b><small data-i18n="shell.dbNoteSub">ข้อมูลเก็บถาวรในเครื่องนี้</small></div></div>
-      </div>
-    </aside>
-
-    <section class="workspace">
-      <header class="topbar">
-        <button id="mobile-menu" class="icon-button mobile-only" data-i18n-aria="shell.openMenu" aria-label="เปิดเมนู">☰</button>
-        <div><small id="breadcrumb" data-i18n="shell.breadcrumb">ระบบตรวจสอบความปลอดภัย</small><h2 id="page-title">ภาพรวม</h2></div>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <button id="mobile-menu" class="icon-button nav-burger" type="button" data-i18n-aria="shell.openMenu" aria-label="เปิดเมนู" aria-expanded="false" aria-controls="main-nav">☰</button>
+        <div class="brand-lockup brand-lockup--header">
+          <span class="brand-mark" aria-hidden="true">✓</span>
+          <strong>SafeCheck</strong>
+        </div>
+        <nav id="main-nav" class="main-nav" data-i18n-aria="nav.aria">
+          <button type="button" data-view="dashboard" class="active"><span data-i18n="nav.dashboard">ภาพรวม</span></button>
+          <button type="button" data-view="venues" data-cap-any="inspection.submit,venue.manage"><span data-i18n="nav.venues">เริ่มการตรวจ</span></button>
+          <button type="button" data-view="approvals"><span data-i18n="nav.approvals">อนุมัติ</span> <em id="nav-approval-count" hidden>0</em></button>
+          <button type="button" data-view="history"><span data-i18n="nav.history">ประวัติ</span></button>
+          <button type="button" data-view="actions"><span data-i18n="nav.actions">งานแก้ไข</span> <em id="nav-action-count" hidden>0</em></button>
+          <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false"><span data-i18n="nav.groupSafety">AI &amp; อุปกรณ์</span> <span class="nav-caret" aria-hidden="true">▾</span></button>
+            <div class="nav-menu">
+              <button type="button" data-view="alerts"><span data-i18n="nav.alerts">การแจ้งเตือน Safety</span> <em id="nav-alert-count" hidden>0</em></button>
+              <button type="button" data-view="ai-monitor"><span data-i18n="nav.aiMonitor">สถานะ AI แบบเรียลไทม์</span></button>
+              <button type="button" data-view="equipment"><span data-i18n="nav.equipment">ทะเบียนอุปกรณ์</span></button>
+              <button type="button" data-view="sensors"><span data-i18n="nav.sensors">เซ็นเซอร์ &amp; อุปกรณ์</span></button>
+            </div>
+          </div>
+          <button type="button" data-view="admin" data-cap-any="user.manage,role.manage,data.correct,venue.manage,equipment.manage,security.view,activity.view,session.manage,system.backup"><span data-i18n="nav.admin">จัดการระบบ</span> <em id="nav-admin-count" hidden>0</em></button>
+          <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false"><span data-i18n="nav.groupMore">เพิ่มเติม</span> <span class="nav-caret" aria-hidden="true">▾</span></button>
+            <div class="nav-menu nav-menu--right">
+              <button type="button" data-view="feedback"><span data-i18n="nav.feedback">ส่งความคิดเห็น (UAT)</span> <em id="nav-feedback-count" hidden>0</em></button>
+              <button type="button" data-view="standards"><span data-i18n="nav.standards">มาตรฐานความปลอดภัย</span></button>
+              <button type="button" data-view="testing"><span data-i18n="nav.testing">การทดสอบระบบ</span></button>
+              <button type="button" id="reset-data" class="nav-reset" data-cap="system.reset"><span data-i18n="shell.reset">↻ รีเซ็ตข้อมูลเดโม</span></button>
+            </div>
+          </div>
+        </nav>
+        <h2 id="page-title" class="sr-only">ภาพรวม</h2>
         <div class="topbar-actions">
           <button type="button" class="lang-toggle" data-lang-toggle data-i18n="lang.switch" data-i18n-aria="lang.switchAria">EN</button>
           <div class="notif-wrap">
@@ -167,18 +158,15 @@
             </div>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
+    <section class="workspace">
       <div class="content-area">
         <section id="view-dashboard" class="view active" data-title-key="view.dashboard">
-          <div class="welcome-banner">
-            <div><span class="eyebrow" data-i18n="dash.eyebrow">SAFETY OVERVIEW</span><h1 id="welcome-title">สวัสดี</h1><p data-i18n="dash.subtitle">ติดตามสถานะการตรวจและรายการที่ต้องแก้ไขจากจุดเดียว</p></div>
-            <button class="btn btn-light" data-go="venues" data-cap-any="inspection.submit" data-i18n="dash.newInspection">+ เริ่มการตรวจใหม่</button>
-          </div>
           <div id="role-focus-banner" class="role-focus-banner"></div>
-          <div id="scope-banner" class="scope-banner"></div>
           <div id="metric-grid" class="metric-grid"></div>
-          <div class="dashboard-grid dashboard-grid--status">
+          <div class="dashboard-grid dashboard-grid--status" data-dash="oversight">
             <article class="panel ai-status-panel">
               <div class="panel-heading"><div><h3 data-i18n="dash.aiTitle">◉ สถานะความปลอดภัยจาก AI</h3><p data-i18n="dash.aiSubtitle">สรุปการแจ้งเตือนจากกล้อง CCTV แบบเรียลไทม์ทุกสถานที่</p></div><button class="text-button" data-go="alerts" data-i18n="dash.viewAll">ดูทั้งหมด →</button></div>
               <div id="ai-status-body"></div>
@@ -188,7 +176,7 @@
               <div id="equipment-status-body"></div>
             </article>
           </div>
-          <div class="dashboard-grid">
+          <div class="dashboard-grid" data-dash="oversight">
             <article class="panel panel-wide">
               <div class="panel-heading"><div><h3 data-i18n="dash.venueScores">คะแนนความปลอดภัยรายสถานที่</h3><p data-i18n="dash.venueScoresSub">ผลจากการตรวจล่าสุดในระบบ</p></div><span class="legend"><i></i> <span data-i18n="dash.scoreLegend">คะแนน (%)</span></span></div>
               <div id="venue-bars" class="venue-bars"></div>
@@ -205,8 +193,9 @@
         </section>
 
         <section id="view-venues" class="view" data-title-key="view.venues">
-          <div class="section-intro"><div><span class="eyebrow" data-i18n="venues.eyebrow">NEW INSPECTION</span><h1 data-i18n="venues.title">เลือกพื้นที่หรือสถานบริการ</h1><p data-i18n="venues.subtitle">เลือกสถานที่และรอบการตรวจเพื่อเริ่ม Checklist</p></div><button class="btn btn-primary" type="button" id="add-venue-button" data-cap-any="venue.manage" data-i18n="venues.addPlace">+ เพิ่มสถานที่ตรวจ</button><div class="step-indicator" data-cap-any="inspection.submit"><b>1</b><span></span><i>2</i><span></span><i>3</i><small><span data-i18n="venues.step1">สถานที่</span>&nbsp;&nbsp;&nbsp;&nbsp;<span data-i18n="venues.step2">ตรวจสอบ</span>&nbsp;&nbsp;&nbsp;&nbsp;<span data-i18n="venues.step3">สรุปผล</span></small></div></div>
-          <div class="filter-row"><input id="venue-search" type="search" data-i18n-placeholder="venues.searchPlaceholder" placeholder="ค้นหาชื่อสถานที่หรือประเภท..."><select id="venue-type-filter"><option value="all" data-i18n="venues.allTypes">ทุกประเภท</option><option value="Restaurant">Restaurant</option><option value="Bar &amp; Pub">Bar &amp; Pub</option><option value="Entertainment">Entertainment</option></select></div>
+          <div class="section-intro"><div><span class="eyebrow" data-i18n="venues.eyebrow">NEW INSPECTION</span><h1 id="venues-title">เลือกสถานที่</h1></div><button class="btn btn-primary" type="button" id="add-venue-button" data-cap-any="venue.manage" data-i18n="venues.addPlace">+ เพิ่มสถานที่ตรวจ</button></div>
+          <div class="filter-row" id="venue-filter-row"><input id="venue-search" type="search" data-i18n-placeholder="venues.searchPlaceholder" placeholder="ค้นหาชื่อสถานที่หรือประเภท..."></div>
+          <div id="venue-single" class="venue-single" hidden></div>
           <div id="venue-grid" class="venue-grid"></div>
         </section>
 
@@ -245,15 +234,15 @@
         <section id="view-approvals" class="view" data-title-key="view.approvals">
           <div class="section-intro"><div><span class="eyebrow" data-i18n="appr.eyebrow">APPROVAL WORKFLOW</span><h1 id="appr-title">ตรวจสอบและอนุมัติ</h1><p id="appr-subtitle"></p></div><span id="appr-pill" class="large-pill"></span></div>
 
-          <article class="panel">
-            <div class="panel-heading"><div><h3 data-i18n="appr.flowTitle">ขั้นตอนการอนุมัติ</h3><p data-i18n="appr.flowSub">ทุกรายการต้องผ่านครบทุกขั้นก่อนถือว่าเสร็จสิ้น</p></div></div>
+          <details class="help-box">
+            <summary data-i18n="appr.flowTitle">ขั้นตอนการอนุมัติ</summary>
             <div id="appr-flow" class="workflow-steps"></div>
             <div class="deadline-rules">
               <div class="deadline-rule"><span class="freq-tag" data-i18n="freq.daily">รายวัน</span><b data-i18n="appr.ruleDaily">อนุมัติก่อน 17:00 น.</b><small data-i18n="appr.ruleDailySub">ก่อนร้านเปิด ถ้าส่งหลัง 17:00 น. นับเป็นรอบเปิดร้านวันถัดไป</small></div>
               <div class="deadline-rule"><span class="freq-tag" data-i18n="freq.monthly">รายเดือน</span><b data-i18n="appr.ruleMonthly">ก่อนสิ้นเดือน 1 สัปดาห์</b><small data-i18n="appr.ruleMonthlySub">เช่น เดือนกันยายน ต้องอนุมัติภายในวันที่ 23</small></div>
               <div class="deadline-rule"><span class="freq-tag" data-i18n="freq.yearly">รายปี</span><b data-i18n="appr.ruleYearly">ภายในเดือนพฤศจิกายน</b><small data-i18n="appr.ruleYearlySub">ต้องอนุมัติภายในวันที่ 30 พฤศจิกายน ก่อนสิ้นปี</small></div>
             </div>
-          </article>
+          </details>
 
           <div class="tab-row appr-tabs" role="tablist">
             <button type="button" class="tab-btn active" data-appr-tab="queue" role="tab" aria-selected="true" data-i18n="appr.tabQueue">รอฉันดำเนินการ</button>
@@ -272,8 +261,8 @@
           </div>
           <div id="appr-list" class="actions-list"></div>
 
-          <article class="panel notify-panel" data-cap-any="staff.notify">
-            <div class="panel-heading"><div><h3 data-i18n="notify.title">📣 แจ้งเตือนพนักงาน</h3><p data-i18n="notify.sub">ส่งข้อความถึงพนักงานทุกคนของสถานที่ที่เลือก ข้อความจะขึ้นที่กระดิ่งแจ้งเตือนของพนักงาน</p></div></div>
+          <details class="help-box notify-panel" data-cap-any="staff.notify">
+            <summary data-i18n="notify.title">📣 แจ้งเตือนพนักงาน</summary>
             <form id="notify-form">
               <div class="field-row">
                 <div><label for="notify-venue" data-i18n="notify.venue">สถานที่</label><select id="notify-venue"></select></div>
@@ -284,7 +273,7 @@
               <div class="form-error" id="notify-error" hidden></div>
               <button class="btn btn-primary" type="submit" data-i18n="notify.send">ส่งการแจ้งเตือน</button>
             </form>
-          </article>
+          </details>
         </section>
 
         <section id="view-admin" class="view" data-title-key="view.admin">
@@ -316,6 +305,40 @@
           <div class="section-intro"><div><span class="eyebrow" data-i18n="ai.eyebrow">AI DETECTION · FIRE DISASTER FOCUS</span><h1 data-i18n="ai.title">ตรวจจับความผิดปกติที่เกี่ยวข้องกับอัคคีภัยด้วย AI</h1><p data-i18n="ai.subtitle">ระบบเน้นตรวจจับความผิดปกติที่เกี่ยวข้องกับอัคคีภัยเป็นหลัก</p></div></div>
           <div class="demo-legend" data-i18n="ai.demoLegend">🧪 ปุ่มขอบเส้นประสีเหลือง = ปุ่มจำลองสำหรับสาธิตเท่านั้น</div>
 
+          <article class="panel">
+            <div class="panel-heading"><div><h3 data-i18n="ai.simTitle">จำลองการทำงานของระบบ (Live Demo)</h3><p data-i18n="ai.simSub">ตรวจจับ → ประมวลผล → จัดระดับ → แจ้งเตือน</p></div><button id="simulate-detection" class="btn btn-demo" data-cap="alert.simulate" data-i18n="ai.simBtn">▶ จำลองการตรวจจับ</button></div>
+            <div class="sim-layout">
+              <div class="cam-mock">
+                <div class="cam-mock-bar"><span>● REC</span><span data-i18n="ai.camLabel">กล้อง 01</span></div>
+                <svg viewBox="0 0 320 180" class="cam-mock-svg" id="cam-mock-svg" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="0" y="0" width="320" height="180" fill="#0f2f44"/>
+                  <polygon points="55,180 265,180 200,26 120,26" fill="#25506a"/>
+                  <rect x="128" y="6" width="64" height="24" fill="#1c3c52" stroke="#4a7089" stroke-width="1"/>
+                  <text x="160" y="22" font-size="9" fill="#8fd9c9" text-anchor="middle">EXIT</text>
+                  <g class="obstruction-box" style="opacity:0">
+                    <rect x="138" y="118" width="58" height="36" rx="4" fill="#d94a4a" stroke="#fff" stroke-width="1.5"/>
+                    <text class="obstruction-label" x="167" y="140" font-size="9" fill="#fff" text-anchor="middle">!</text>
+                  </g>
+                </svg>
+              </div>
+              <div class="sim-status">
+                <span class="eyebrow" data-i18n="ai.currentStatus">สถานะปัจจุบัน</span>
+                <div id="live-status-badge" class="live-status-badge level-normal" data-i18n="lvl.normal">ปกติ</div>
+                <div class="flow-diagram flow-diagram--compact" id="sim-flow">
+                  <div class="flow-step" data-stage="detect"><span>📷</span><b data-i18n="ai.stageDetect">ตรวจจับ</b></div>
+                  <div class="flow-arrow">→</div>
+                  <div class="flow-step" data-stage="process"><span>🧠</span><b data-i18n="ai.stageProcess">ประมวลผล</b></div>
+                  <div class="flow-arrow">→</div>
+                  <div class="flow-step" data-stage="classify"><span>⚖</span><b data-i18n="ai.stageClassify">จัดระดับ</b></div>
+                  <div class="flow-arrow">→</div>
+                  <div class="flow-step" data-stage="notify"><span>🔔</span><b data-i18n="ai.stageNotify">แจ้งเตือน</b></div>
+                </div>
+                <p id="sim-log" class="sim-log" data-i18n="ai.simIdle">กด “จำลองการตรวจจับ” เพื่อดูขั้นตอนการทำงานของระบบ</p>
+              </div>
+            </div>
+          </article>
+          <details class="help-box">
+            <summary data-i18n="ai.howTitle">AI ทำงานอย่างไร</summary>
           <article class="panel">
             <div class="panel-heading"><div><h3 data-i18n="ai.scopeTitle">AI ตรวจจับอะไร</h3><p data-i18n="ai.scopeSub">4 ประเภทความผิดปกติที่เกี่ยวข้องกับอัคคีภัย</p></div></div>
             <div class="ai-scope-grid">
@@ -353,44 +376,29 @@
             </article>
           </div>
 
-          <article class="panel">
-            <div class="panel-heading"><div><h3 data-i18n="ai.simTitle">จำลองการทำงานของระบบ (Live Demo)</h3><p data-i18n="ai.simSub">ตรวจจับ → ประมวลผล → จัดระดับ → แจ้งเตือน</p></div><button id="simulate-detection" class="btn btn-demo" data-cap="alert.simulate" data-i18n="ai.simBtn">▶ จำลองการตรวจจับ</button></div>
-            <div class="sim-layout">
-              <div class="cam-mock">
-                <div class="cam-mock-bar"><span>● REC</span><span data-i18n="ai.camLabel">กล้อง 01</span></div>
-                <svg viewBox="0 0 320 180" class="cam-mock-svg" id="cam-mock-svg" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="0" y="0" width="320" height="180" fill="#0f2f44"/>
-                  <polygon points="55,180 265,180 200,26 120,26" fill="#25506a"/>
-                  <rect x="128" y="6" width="64" height="24" fill="#1c3c52" stroke="#4a7089" stroke-width="1"/>
-                  <text x="160" y="22" font-size="9" fill="#8fd9c9" text-anchor="middle">EXIT</text>
-                  <g class="obstruction-box" style="opacity:0">
-                    <rect x="138" y="118" width="58" height="36" rx="4" fill="#d94a4a" stroke="#fff" stroke-width="1.5"/>
-                    <text class="obstruction-label" x="167" y="140" font-size="9" fill="#fff" text-anchor="middle">!</text>
-                  </g>
-                </svg>
-              </div>
-              <div class="sim-status">
-                <span class="eyebrow" data-i18n="ai.currentStatus">สถานะปัจจุบัน</span>
-                <div id="live-status-badge" class="live-status-badge level-normal" data-i18n="lvl.normal">ปกติ</div>
-                <div class="flow-diagram flow-diagram--compact" id="sim-flow">
-                  <div class="flow-step" data-stage="detect"><span>📷</span><b data-i18n="ai.stageDetect">ตรวจจับ</b></div>
-                  <div class="flow-arrow">→</div>
-                  <div class="flow-step" data-stage="process"><span>🧠</span><b data-i18n="ai.stageProcess">ประมวลผล</b></div>
-                  <div class="flow-arrow">→</div>
-                  <div class="flow-step" data-stage="classify"><span>⚖</span><b data-i18n="ai.stageClassify">จัดระดับ</b></div>
-                  <div class="flow-arrow">→</div>
-                  <div class="flow-step" data-stage="notify"><span>🔔</span><b data-i18n="ai.stageNotify">แจ้งเตือน</b></div>
-                </div>
-                <p id="sim-log" class="sim-log" data-i18n="ai.simIdle">กด “จำลองการตรวจจับ” เพื่อดูขั้นตอนการทำงานของระบบ</p>
-              </div>
-            </div>
-          </article>
+          </details>
         </section>
 
         <section id="view-alerts" class="view" data-title-key="view.alerts">
           <div class="section-intro"><div><span class="eyebrow" data-i18n="alerts.eyebrow">SAFETY ALERTS</span><h1 data-i18n="alerts.title">ระบบแจ้งเตือนและระดับความเสี่ยง</h1><p data-i18n="alerts.subtitle">กำหนด 3 ระดับการแจ้งเตือน</p></div><button id="generate-alert" class="btn btn-demo" data-i18n="alerts.genBtn">+ จำลองแจ้งเตือนใหม่</button></div>
           <div class="demo-legend" data-i18n="alerts.demoLegend">🧪 ปุ่มขอบเส้นประสีเหลือง = ปุ่มจำลองสำหรับสาธิตเท่านั้น</div>
 
+          <article class="panel">
+            <div class="panel-heading"><div><h3 data-i18n="alerts.listTitle">รายการแจ้งเตือน</h3><p data-i18n="alerts.listSub"></p></div><span id="alert-open-pill" class="large-pill"></span></div>
+            <div class="tab-row" role="tablist">
+              <button type="button" class="tab-btn active" data-alert-tab="active" role="tab" aria-selected="true" data-i18n="alerts.tabActive">กำลังดำเนินการ</button>
+              <button type="button" class="tab-btn" data-alert-tab="history" role="tab" aria-selected="false" data-i18n="alerts.tabHistory">ประวัติทั้งหมด</button>
+            </div>
+            <div id="alerts-tab-active">
+              <div id="alerts-list" class="actions-list"></div>
+            </div>
+            <div id="alerts-tab-history" hidden>
+              <div class="filter-row"><input id="alert-history-search" type="search" data-i18n-placeholder="alerts.searchPlaceholder" placeholder="ค้นหา..."><select id="alert-history-level"><option value="all" data-i18n="alerts.allLevels">ทุกระดับ</option><option value="caution" data-i18n="lvl.caution">ค่อนข้างเข้าข่าย</option><option value="danger" data-i18n="lvl.danger">อันตราย</option></select></div>
+              <div class="table-wrap"><table><thead><tr><th data-i18n="alerts.col.time">เวลา</th><th data-i18n="alerts.col.zone">สถานที่/จุดตรวจ</th><th data-i18n="alerts.col.level">ระดับ</th><th data-i18n="alerts.col.detected">สิ่งที่ตรวจพบ</th><th data-i18n="alerts.col.status">สถานะ</th><th data-i18n="alerts.col.duration">ระยะเวลาแก้ไข</th></tr></thead><tbody id="alert-history-table"></tbody></table></div>
+            </div>
+          </article>
+          <details class="help-box">
+            <summary data-i18n="alerts.howTitle">ระดับการแจ้งเตือนและขั้นตอน</summary>
           <div class="level-grid">
             <article class="level-card level-normal"><b data-i18n="alerts.lvlNormal">ระดับปกติ</b><span class="level-badge">Normal</span><p data-i18n="alerts.lvlNormalDesc"></p><ul><li data-i18n="alerts.lvlNormal1"></li><li data-i18n="alerts.lvlNormal2"></li></ul></article>
             <article class="level-card level-caution"><b data-i18n="alerts.lvlCaution">ระดับค่อนข้างเข้าข่าย</b><span class="level-badge">Caution</span><p data-i18n="alerts.lvlCautionDesc"></p><ul><li data-i18n="alerts.lvlCaution1"></li><li data-i18n="alerts.lvlCaution2"></li></ul></article>
@@ -410,29 +418,16 @@
             </div>
           </article>
 
-          <article class="panel">
-            <div class="panel-heading"><div><h3 data-i18n="alerts.listTitle">รายการแจ้งเตือน</h3><p data-i18n="alerts.listSub"></p></div><span id="alert-open-pill" class="large-pill"></span></div>
-            <div class="tab-row" role="tablist">
-              <button type="button" class="tab-btn active" data-alert-tab="active" role="tab" aria-selected="true" data-i18n="alerts.tabActive">กำลังดำเนินการ</button>
-              <button type="button" class="tab-btn" data-alert-tab="history" role="tab" aria-selected="false" data-i18n="alerts.tabHistory">ประวัติทั้งหมด</button>
-            </div>
-            <div id="alerts-tab-active">
-              <div id="alerts-list" class="actions-list"></div>
-            </div>
-            <div id="alerts-tab-history" hidden>
-              <div class="filter-row"><input id="alert-history-search" type="search" data-i18n-placeholder="alerts.searchPlaceholder" placeholder="ค้นหา..."><select id="alert-history-level"><option value="all" data-i18n="alerts.allLevels">ทุกระดับ</option><option value="caution" data-i18n="lvl.caution">ค่อนข้างเข้าข่าย</option><option value="danger" data-i18n="lvl.danger">อันตราย</option></select></div>
-              <div class="table-wrap"><table><thead><tr><th data-i18n="alerts.col.time">เวลา</th><th data-i18n="alerts.col.zone">สถานที่/จุดตรวจ</th><th data-i18n="alerts.col.level">ระดับ</th><th data-i18n="alerts.col.detected">สิ่งที่ตรวจพบ</th><th data-i18n="alerts.col.status">สถานะ</th><th data-i18n="alerts.col.duration">ระยะเวลาแก้ไข</th></tr></thead><tbody id="alert-history-table"></tbody></table></div>
-            </div>
-          </article>
+          </details>
         </section>
 
         <section id="view-sensors" class="view" data-title-key="view.sensors">
           <div class="section-intro"><div><span class="eyebrow" data-i18n="sensors.eyebrow">HARDWARE</span><h1 data-i18n="sensors.title">เซ็นเซอร์และอุปกรณ์ที่ใช้ในระบบ</h1><p data-i18n="sensors.subtitle"></p></div></div>
           <div id="device-grid" class="device-grid"></div>
-          <article class="panel">
-            <div class="panel-heading"><div><h3 data-i18n="sensors.tableTitle">ตารางเปรียบเทียบอุปกรณ์</h3><p data-i18n="sensors.tableSub"></p></div></div>
+          <details class="help-box">
+            <summary data-i18n="sensors.tableTitle">ตารางเปรียบเทียบอุปกรณ์</summary>
             <div class="table-wrap"><table><thead><tr><th data-i18n="sensors.col.device">อุปกรณ์</th><th data-i18n="sensors.col.install">ตำแหน่งติดตั้ง</th><th data-i18n="sensors.col.spec">สเปกหลัก</th><th data-i18n="sensors.col.role">หน้าที่</th><th data-i18n="sensors.col.reason">เหตุผลที่เลือก</th></tr></thead><tbody id="device-table"></tbody></table></div>
-          </article>
+          </details>
           <article class="panel">
             <div class="panel-heading"><div><h3 data-i18n="sensors.checkTitle">AI ช่วยตรวจสอบสภาพอุปกรณ์จากภาพถ่าย</h3><p data-i18n="sensors.checkSub"></p></div></div>
             <div class="sensor-check">
@@ -451,17 +446,17 @@
           <div class="demo-legend" data-i18n="equip.demoLegend">🧪 ปุ่มขอบเส้นประสีเหลือง = ปุ่มจำลองสำหรับสาธิตเท่านั้น</div>
 
           <article class="panel">
-            <div class="panel-heading"><div><h3 data-i18n="equip.listTitle">รายการอุปกรณ์ทั้งหมด</h3><p data-i18n="equip.listSub"></p></div></div>
-            <div class="table-wrap"><table><thead><tr><th data-i18n="equip.col.venue">สถานที่</th><th data-i18n="equip.col.type">ประเภท</th><th data-i18n="equip.col.item">รายการ</th><th data-i18n="equip.col.expiry">วันหมดอายุ</th><th data-i18n="equip.col.status">สถานะ</th></tr></thead><tbody id="equipment-table"></tbody></table></div>
-          </article>
-
-          <article class="panel">
             <div class="panel-heading"><div><h3 data-i18n="equip.complianceTitle">ตารางเปรียบเทียบจำนวนอุปกรณ์กับมาตรฐาน</h3><p data-i18n="equip.complianceSub"></p></div></div>
             <div class="table-wrap"><table><thead><tr><th data-i18n="equip.col.venue">สถานที่</th><th data-i18n="equip.col.tables">จำนวนโต๊ะ</th><th data-i18n="equip.col.current">ถังดับเพลิงที่มี</th><th data-i18n="equip.col.required">ต้องมีตามมาตรฐาน</th><th data-i18n="equip.col.result">ผลลัพธ์</th></tr></thead><tbody id="equipment-compliance-table"></tbody></table></div>
           </article>
 
           <article class="panel">
-            <div class="panel-heading"><div><h3 data-i18n="equip.ocrTitle">แจ้งเตือนอุปกรณ์หมดอายุจากภาพถ่าย</h3><p data-i18n="equip.ocrSub"></p></div></div>
+            <div class="panel-heading"><div><h3 data-i18n="equip.listTitle">รายการอุปกรณ์ทั้งหมด</h3><p data-i18n="equip.listSub"></p></div></div>
+            <div class="table-wrap"><table><thead><tr><th data-i18n="equip.col.venue">สถานที่</th><th data-i18n="equip.col.type">ประเภท</th><th data-i18n="equip.col.item">รายการ</th><th data-i18n="equip.col.expiry">วันหมดอายุ</th><th data-i18n="equip.col.status">สถานะ</th></tr></thead><tbody id="equipment-table"></tbody></table></div>
+          </article>
+
+          <details class="help-box">
+            <summary data-i18n="equip.ocrTitle">แจ้งเตือนอุปกรณ์หมดอายุจากภาพถ่าย</summary>
             <div class="sensor-check">
               <div>
                 <label for="equipment-check-select" data-i18n="equip.ocrSelect">เลือกอุปกรณ์</label>
@@ -470,7 +465,7 @@
               <button id="equipment-check-run" class="btn btn-demo" data-cap="equipment.manage" data-i18n="equip.ocrBtn">📷 จำลองอ่านวันหมดอายุจากภาพ</button>
               <div id="equipment-check-result" class="sensor-check-result"></div>
             </div>
-          </article>
+          </details>
         </section>
 
         <section id="view-standards" class="view" data-title-key="view.standards">
@@ -481,10 +476,6 @@
         <section id="view-feedback" class="view" data-title-key="view.feedback">
           <div class="section-intro"><div><span class="eyebrow" data-i18n="fb.eyebrow">USER ACCEPTANCE TEST</span><h1 data-i18n="fb.title">แบบประเมินการใช้งานจริง</h1><p data-i18n="fb.subtitle"></p></div></div>
 
-          <div class="fb-intro panel">
-            <b data-i18n="fb.introTitle">ใช้เวลาประมาณ 2 นาที</b>
-            <p data-i18n="fb.introBody">ตอบเฉพาะงานที่คุณทำจริงพอ ข้อที่ไม่ได้ทำข้ามได้เลย ช่องที่มีเครื่องหมาย * เท่านั้นที่จำเป็นต้องกรอก</p>
-          </div>
           <div id="fb-thanks" class="panel empty-state" hidden><b data-i18n="fb.thanksTitle">ขอบคุณสำหรับความคิดเห็น</b><span data-i18n="fb.thanksBody">คำตอบของคุณถูกบันทึกไว้แล้ว</span></div>
 
           <form id="fb-form" class="panel panel-wide">

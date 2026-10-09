@@ -255,7 +255,6 @@
     $('#dropdown-name').textContent = user.name;
     $('#dropdown-email').textContent = user.email || '';
     $('#role-badge').textContent = `${meta.label} · ${meta.permissions}`;
-    $('#welcome-title').textContent = `${t('dash.greeting')}, ${user.name.split(' ')[0]}`;
   }
 
   async function enterApp(user) {
@@ -407,9 +406,24 @@
     Api.logView(name).catch(() => {});
   }
 
+  function closeNavMenus() {
+    $$('.nav-group').forEach(g => { g.classList.remove('open'); g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'false'); });
+    $('.topbar').classList.remove('nav-open');
+    $('#mobile-menu').setAttribute('aria-expanded', 'false');
+  }
+
+  // Menu counters only show when there is something to do; a red "0" reads as an alarm.
+  function setNavCount(id, n) {
+    const el = $('#' + id);
+    if (!el) return;
+    el.textContent = n;
+    el.hidden = !n;
+  }
+
   function showView(name) {
     $$('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
-    $$('.main-nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.view === name));
+    $$('.main-nav [data-view]').forEach(btn => btn.classList.toggle('active', btn.dataset.view === name));
+    $$('.nav-group').forEach(g => g.classList.toggle('active', !!g.querySelector(`[data-view="${name}"]`)));
     const active = $(`#view-${name}`);
     $('#page-title').textContent = active ? t(active.dataset.titleKey) : 'SafeCheck';
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -425,7 +439,7 @@
     if (name === 'feedback') renderFeedback();
     if (extraViews[name]) extraViews[name].render();
     logView(name);
-    $('.sidebar').classList.remove('open');
+    closeNavMenus();
   }
 
   // --- UAT feedback -------------------------------------------------------------
@@ -527,7 +541,7 @@
   function renderFeedback() {
     renderFeedbackForm();
     const pill = $('#nav-feedback-count');
-    if (pill) pill.textContent = (state.data && state.data.feedbackCount) || 0;
+    if (pill) setNavCount('nav-feedback-count', (state.data && state.data.feedbackCount) || 0);
 
     const panel = $('#fb-admin-panel');
     if (!panel) return;
@@ -618,24 +632,41 @@
       stats = t('guide.stat.admin', { users: summary.users || 0, suspended: summary.suspended || 0, suspicious: summary.suspicious || 0 });
       cta = 'admin';
     }
-    const meta = roleMeta(role);
     const steps = [1, 2, 3].map(n => `<li><span>${n}</span>${escapeHtml(t(`guide.${role}.${n}`))}</li>`).join('');
-    el.innerHTML = `<div class="role-guide-head"><div><span class="eyebrow">${escapeHtml(meta.label)} · ${escapeHtml(meta.th)}</span><b>${escapeHtml(t('guide.title'))}</b><p>${escapeHtml(stats)}</p></div><button class="btn btn-primary" type="button">${escapeHtml(t(ctaKey))}</button></div><ol class="role-guide-steps">${steps}</ol>`;
+    const first = state.user.name.split(' ')[0];
+    el.innerHTML = `<div class="home-head"><div><h1>${escapeHtml(t('dash.greeting'))}, ${escapeHtml(first)}</h1><p>${escapeHtml(stats)}</p><small>${escapeHtml(scopeLine())}</small></div><button class="btn btn-primary" type="button">${escapeHtml(t(ctaKey))}</button></div><details class="help-box help-box--inline"><summary>${escapeHtml(t('guide.title'))}</summary><ol class="role-guide-steps">${steps}</ol></details>`;
     el.querySelector('button').onclick = () => showView(cta);
+  }
+
+  // One short line telling people whose data they are looking at.
+  function scopeLine() {
+    const scope = state.data && state.data.scope;
+    const venues = (state.data && state.data.venues) || [];
+    if (venues.length === 1) return t('scope.single', { name: venues[0].name });
+    if (!scope) return '';
+    return scope.unrestricted
+      ? t('scope.all', { n: scope.totalVenueCount })
+      : t('scope.limited', { n: scope.venueCount, total: scope.totalVenueCount, branch: scope.branch });
+  }
+
+  // Charts and cross-venue status only help people who oversee several venues; staff and
+  // inspectors get their numbers and recent records without the extra panels.
+  function showsOversight() {
+    return ['supervisor', 'manager', 'admin'].includes(state.user && state.user.role);
   }
 
   function renderDashboard() {
     // Drafts and records sent back are not results yet, so they stay out of the figures.
     const stats = Core.dashboardStats(state.data.inspections.filter(isActive));
     const open = actionRows().filter(a => a.item.actionStatus !== 'closed').length;
-    $('#nav-action-count').textContent = open;
+    setNavCount('nav-action-count', open);
     const metrics = [
       { icon: '✓', label: t('dash.metric.total'), value: stats.total, unit: t('dash.metric.totalUnit'), note: '' },
       { icon: '◎', label: t('dash.metric.avg'), value: `${stats.averageScore}%`, unit: t('dash.metric.avgUnit'), note: t('dash.metric.avgTarget') },
       { icon: '!', label: t('dash.metric.failed'), value: stats.failedItems, unit: t('dash.metric.failedUnit'), note: '' },
       { icon: '↻', label: t('dash.metric.open'), value: open, unit: t('dash.metric.openUnit'), note: '' }
     ];
-    $('#metric-grid').innerHTML = metrics.map(m => `<article class="metric-card"><span class="metric-icon">${m.icon}</span><div><small>${escapeHtml(m.label)}</small><strong>${m.value}</strong><small>${escapeHtml(m.unit)}</small></div><em>${escapeHtml(m.note)}</em></article>`).join('');
+    $('#metric-grid').innerHTML = metrics.map(m => `<article class="metric-card"><span class="metric-icon">${m.icon}</span><div><small>${escapeHtml(m.label)}</small><strong>${m.value}</strong></div></article>`).join('');
 
     const latestByVenue = state.data.venues.map(v => {
       const rows = state.data.inspections.filter(i => i.venueId === v.id && isActive(i)).sort((a,b) => b.date.localeCompare(a.date));
@@ -652,6 +683,7 @@
     $('#action-donut').innerHTML = `<div class="donut" style="background:conic-gradient(var(--teal) 0 ${closedPct}%, #f0a51b ${closedPct}% 100%)"><div><strong>${total-closed}</strong><small>${t('dash.openItems')}</small></div></div><div class="donut-legend"><span><i style="background:var(--teal)"></i>${t('dash.closedCount')} ${closed}</span><span><i style="background:var(--yellow)"></i>${t('dash.trackingCount')} ${total-closed}</span></div>`;
     $('#recent-table').innerHTML = state.data.inspections.slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,5).map(i => `<tr><td>${formatDate(i.date)}</td><td><b>${escapeHtml(i.venueName)}</b> <span class="freq-tag">${frequencyText(i.frequency)}</span></td><td>${escapeHtml(i.inspector)}</td><td><span class="score-badge ${scoreClass(i.score)}">${i.score}</span></td><td>${stageBadgeHtml(i)}</td><td><button class="text-button" data-detail="${i.id}">${t('hist.view')}</button></td></tr>`).join('');
     renderRoleFocus();
+    $$('[data-dash="oversight"]').forEach(el => { el.hidden = !showsOversight(); });
     renderAIStatusPanel();
     renderEquipmentStatusPanel();
     bindDynamicButtons();
@@ -701,11 +733,34 @@
   }
 
   function renderVenues() {
+    const all = state.data.venues;
+    const single = all.length === 1 ? all[0] : null;
+    const singleEl = $('#venue-single');
+    singleEl.hidden = !single;
+    $('#venue-grid').hidden = !!single;
+    // Search only earns its space once there are more venues than fit on one screen.
+    $('#venue-filter-row').hidden = !!single || all.length <= 6;
+    $('#venues-title').textContent = single ? t('venues.titleSingle') : t('venues.title');
+    if (single) {
+      singleEl.innerHTML = singleVenueHtml(single);
+      bindDynamicButtons();
+      return;
+    }
     const term = ($('#venue-search')?.value || '').trim().toLowerCase();
-    const type = $('#venue-type-filter')?.value || 'all';
-    const rows = state.data.venues.filter(v => (type === 'all' || v.type === type) && `${v.name} ${v.location} ${v.locationEn} ${v.type}`.toLowerCase().includes(term));
-    $('#venue-grid').innerHTML = rows.map(v => `<article class="venue-card"><div class="venue-cover"><span>${v.type}</span><b>${v.icon}</b></div><div class="venue-body"><h3>${escapeHtml(v.name)}</h3><p>⌖ ${escapeHtml(venueLocation(v))} · ${v.tablesCount} ${t('venues.tables')}</p><div class="venue-meta"><span>${t('venues.lastInspected')} ${v.lastInspectedDate ? formatDate(v.lastInspectedDate) : t('venues.never')}</span></div>${venueCardActions(v)}</div></article>`).join('') || `<div class="empty-state"><b>${t('venues.notFound')}</b>${t('venues.notFoundSub')}</div>`;
+    const rows = all.filter(v => `${v.name} ${v.location} ${v.locationEn} ${v.type}`.toLowerCase().includes(term));
+    $('#venue-grid').innerHTML = rows.map(v => `<article class="venue-card"><div class="venue-body"><h3>${escapeHtml(v.name)}</h3><p>⌖ ${escapeHtml(venueLocation(v))}</p><div class="venue-meta"><span>${t('venues.lastInspected')} ${v.lastInspectedDate ? formatDate(v.lastInspectedDate) : t('venues.never')}</span></div>${venueCardActions(v)}</div></article>`).join('') || `<div class="empty-state"><b>${t('venues.notFound')}</b>${t('venues.notFoundSub')}</div>`;
     bindDynamicButtons();
+  }
+
+  // A shop owner with one shop should not have to pick it from a list: show the shop and
+  // the three cycles as big buttons, each saying how many items it has.
+  function singleVenueHtml(v) {
+    const counts = state.data.checklistItems || {};
+    const cycles = can('inspection.submit')
+      ? ['daily', 'monthly', 'yearly'].map(f => `<button type="button" class="cycle-btn" data-start="${v.id}" data-freq="${f}"><b>${t('freq.' + f)}</b><small>${t('venues.itemCount', { n: (counts[f] || []).length })} · ${t('venues.when.' + f)}</small></button>`).join('')
+      : '';
+    const manage = can('venue.manage') ? `<button class="text-button" data-venue-manage="${v.id}">${t('venues.editPlace')}</button>` : '';
+    return `<article class="panel single-venue"><div class="single-venue-head"><div><h2>${escapeHtml(v.name)}</h2><p>⌖ ${escapeHtml(venueLocation(v))} · ${t('venues.lastInspected')} ${v.lastInspectedDate ? formatDate(v.lastInspectedDate) : t('venues.never')}</p></div>${manage}</div><div class="cycle-grid">${cycles}</div></article>`;
   }
 
   function startInspection(venueId, frequency) {
@@ -1084,7 +1139,7 @@
     const rows = actionRows();
     const open = rows.filter(r => r.item.actionStatus !== 'closed').length;
     $('#open-action-pill').textContent = t('act.openCount', { n: open });
-    $('#nav-action-count').textContent = open;
+    setNavCount('nav-action-count', open);
     $('#actions-list').innerHTML = rows.length ? rows.map(({inspection:i,item}) => `<article class="action-card"><div><span class="status-badge ${item.actionStatus === 'in_progress' ? 'progress' : item.actionStatus}">${actionText(item.actionStatus)}</span><h3>${escapeHtml(itemTitle(item))}</h3><p>${escapeHtml(item.note || t('act.noNote'))}</p><div class="action-meta"><span>${t('act.venue')} ${escapeHtml(i.venueName)}</span><span>${t('act.id')} ${i.id}</span><span>${t('act.inspector')} ${escapeHtml(i.inspector)}</span></div></div><div><label for="action-${i.id}-${item.id}">${t('act.updateStatus')}</label><select id="action-${i.id}-${item.id}" data-action-inspection="${i.id}" data-action-item="${item.id}" ${can('action.update') ? '' : 'disabled title="' + escapeHtml(t('cap.denied')) + '"'}><option value="open" ${item.actionStatus==='open'?'selected':''}>${t('act.open')}</option><option value="in_progress" ${item.actionStatus==='in_progress'?'selected':''}>${t('act.inProgress')}</option><option value="closed" ${item.actionStatus==='closed'?'selected':''}>${t('act.closed')}</option></select></div></article>`).join('') : `<div class="panel empty-state"><b>${t('act.none')}</b>${t('act.noneSub')}</div>`;
     $$('[data-action-inspection]').forEach(select => select.addEventListener('change', async e => {
       const inspectionId = e.target.dataset.actionInspection, itemId = e.target.dataset.actionItem, value = e.target.value;
@@ -1198,7 +1253,7 @@
     const alerts = state.data.aiAlerts || [];
     const open = alerts.filter(a => a.status !== 'closed');
     if ($('#alert-open-pill')) $('#alert-open-pill').textContent = t('act.openCount', { n: open.length });
-    $('#nav-alert-count').textContent = open.length;
+    setNavCount('nav-alert-count', open.length);
     if (!$('#alerts-list')) return;
     $('#alerts-list').innerHTML = open.length ? open.map(a => `
       <article class="action-card alert-card level-${a.level}" id="alert-${a.id}">
@@ -1422,7 +1477,16 @@
       $('#login-password').value = 'Demo1234!';
       $('#login-form button[type=submit]').focus();
     }));
-    $$('.main-nav button').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.view)));
+    $$('.main-nav [data-view]').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.view)));
+    $$('.nav-group-toggle').forEach(btn => btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const group = btn.closest('.nav-group');
+      const open = !group.classList.contains('open');
+      $$('.nav-group').forEach(g => { g.classList.remove('open'); g.querySelector('.nav-group-toggle').setAttribute('aria-expanded', 'false'); });
+      group.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
+    }));
+    document.addEventListener('click', e => { if (!e.target.closest('.nav-group')) $$('.nav-group').forEach(g => g.classList.remove('open')); });
     $$('[data-go]').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.go)));
     $('#user-menu').addEventListener('click', e => { e.stopPropagation(); setUserMenuOpen(!userMenuOpen()); });
     $('#user-dropdown').addEventListener('click', e => e.stopPropagation());
@@ -1439,8 +1503,13 @@
       if (state.user) showLoginScreen(t('auth.sessionEnded'));
     });
     $('#reset-data').addEventListener('click', resetData);
-    $('#mobile-menu').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
-    $('#venue-search').addEventListener('input', renderVenues); $('#venue-type-filter').addEventListener('change', renderVenues);
+    $('#mobile-menu').addEventListener('click', e => {
+      e.stopPropagation();
+      const open = !$('.topbar').classList.contains('nav-open');
+      $('.topbar').classList.toggle('nav-open', open);
+      $('#mobile-menu').setAttribute('aria-expanded', String(open));
+    });
+    $('#venue-search').addEventListener('input', renderVenues);
     $('#history-search').addEventListener('input', renderHistory); $('#history-status').addEventListener('change', renderHistory);
     $('#submit-inspection').addEventListener('click', submitInspection);
     $('#save-draft').addEventListener('click', saveDraft);
